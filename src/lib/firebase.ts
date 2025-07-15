@@ -2,8 +2,7 @@ import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  TwitterAuthProvider,
-  OAuthProvider 
+  TwitterAuthProvider 
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 

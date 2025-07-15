@@ -88,16 +88,35 @@ const Login = () => {
       
       navigate(role === 'hoster' ? "/hoster" : "/attendee");
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Authentication error",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-      setProviderModalOpen(false);
+    console.error(`${selectedProvider} auth error:`, error);
+    
+    let errorMessage = "Authentication failed";
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/unauthorized-domain':
+          errorMessage = "Domain not authorized - check Firebase config";
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = "Invalid API key - check environment variables";
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = "Network error - check internet connection";
+          break;
+        default:
+          errorMessage = error.message || "Authentication error";
+      }
     }
-  };
+    
+    toast({
+      title: "Login failed",
+      description: errorMessage,
+      variant: "destructive"
+    });
+  } finally {
+    setIsLoading(false);
+    setProviderModalOpen(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex flex-col">

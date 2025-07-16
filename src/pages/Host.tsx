@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, Edit, Trash, Import } from 'lucide-react';
-import { DashboardNavbar } from "@/components/layout/DashNavbar";
+import { Plus, X, Edit, Trash } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -29,6 +28,7 @@ import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Navbar } from '@/components/layout/Navbar';
 
 // Define event type
 interface Event {
@@ -355,7 +355,7 @@ const Host = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <DashboardNavbar />
+      <Navbar/>
 
       <main className="flex-grow pt-16">
         <div className="container py-6 md:py-8">
@@ -690,6 +690,43 @@ const Host = () => {
             </Card>
           </div>
 
+          {/* Settings Section */}
+          <div ref={settingsRef} className="pt-20 -mt-20">
+            <Card className="my-8">
+              <CardHeader>
+                <CardTitle>Account Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-medium mb-3">Notification Preferences</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <input type="checkbox" id="email-notifications" className="mr-2" />
+                        <label htmlFor="email-notifications">Email notifications</label>
+                      </div>
+                      <div className="flex items-center">
+                        <input type="checkbox" id="push-notifications" className="mr-2" />
+                        <label htmlFor="push-notifications">Push notifications</label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium mb-3">Security</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Button variant="outline">Change Password</Button>
+                      </div>
+                      <div>
+                        <Button variant="outline">Two-Factor Authentication</Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
       

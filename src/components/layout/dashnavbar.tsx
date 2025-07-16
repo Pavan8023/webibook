@@ -5,8 +5,6 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -16,7 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 
-export const Navbar = () => {
+export const DashboardNavbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, loadingAuth] = useAuthState(auth);
@@ -102,7 +100,7 @@ export const Navbar = () => {
     >
       <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2">
         <Link 
-          to="/" 
+          to="/host" 
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 mr-2">
@@ -113,17 +111,11 @@ export const Navbar = () => {
         </Link>
         
         <nav className="hidden md:flex items-center space-x-1">
-          <Link to="/" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
+          <Link to="/host" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
             Home
           </Link>
-          <Link to="/discover" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
-            Discover
-          </Link>
-          <Link to="/categories" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
-            Categories
-          </Link>
-          <Link to="/host-webinar" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
-            Host a Webinar
+          <Link to="/profile" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
+            profile
           </Link>
         </nav>
 
@@ -218,34 +210,20 @@ export const Navbar = () => {
       >
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
           <Link 
-            to="/" 
+            to="/host" 
             className="text-lg font-medium px-4 py-2"
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Home
           </Link>
           <Link 
-            to="/discover" 
+            to="/profile" 
             className="text-lg font-medium px-4 py-2"
             onClick={() => setIsMobileMenuOpen(false)}
           >
-            Discover
+            Profile
           </Link>
-          <Link 
-            to="/categories" 
-            className="text-lg font-medium px-4 py-2"
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            Categories
-          </Link>
-          <Link 
-            to="/host-webinar" 
-            className="text-lg font-medium px-4 py-2"
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            Host a Webinar
-          </Link>
-          
+
           <div className="flex flex-col space-y-4 mt-6">
             {user ? (
               <>
@@ -306,3 +284,4 @@ export const Navbar = () => {
     </header>
   );
 };
+

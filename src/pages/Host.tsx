@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, Edit, Trash } from 'lucide-react';
+import { Plus, X, Edit, Trash, Import } from 'lucide-react';
+import { DashboardNavbar } from "@/components/layout/DashNavbar";
 import {
   Select,
   SelectContent,
@@ -28,7 +29,6 @@ import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Navbar } from '@/components/layout/Navbar';
 
 // Define event type
 interface Event {
@@ -355,7 +355,8 @@ const Host = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar/>
+      {/* Fixed: Removed userType prop from DashboardNavbar */}
+      <DashboardNavbar />
 
       <main className="flex-grow pt-16">
         <div className="container py-6 md:py-8">

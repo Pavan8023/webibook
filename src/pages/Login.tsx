@@ -26,6 +26,7 @@ import { RoleSelectionModal } from '@/components/ui/RoleSelectionModal';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { browserSessionPersistence, setPersistence } from 'firebase/auth'; // Added
 
 // Updated form schema with role selection
 const formSchema = z.object({
@@ -58,6 +59,14 @@ const Login = () => {
       role: "attendee",
     },
   });
+
+  // Set session persistence
+  useEffect(() => {
+    setPersistence(auth, browserSessionPersistence)
+      .catch((error) => {
+        console.error("Error setting session persistence:", error);
+      });
+  }, []);
 
   // Fetch user role from Firestore
   useEffect(() => {
@@ -98,6 +107,8 @@ const Login = () => {
   const handleEmailLogin = async (values: FormValues) => {
     setIsLoading(true);
     try {
+      // Set session persistence before login
+      await setPersistence(auth, browserSessionPersistence);
       await emailLogin(values.email, values.password, values.role);
       
       toast({
@@ -125,6 +136,8 @@ const Login = () => {
   const handleProviderLogin = async (role: 'attendee' | 'hoster') => {
     setIsLoading(true);
     try {
+      // Set session persistence before login
+      await setPersistence(auth, browserSessionPersistence);
       await providerSignIn(selectedProvider, role);
       
       toast({

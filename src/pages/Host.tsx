@@ -1,3 +1,4 @@
+// src/pages/Host.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardNavbar } from '@/components/layout/DashboardNavbar';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, Edit, Save, Trash } from 'lucide-react';
+import { Plus, X, Edit, Save, Trash, Pencil, Eye, Copy } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -25,11 +26,17 @@ import {
   updateDoc,
   serverTimestamp
 } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
+
+declare global {
+  interface Window {
+    cloudinary: any;
+  }
+}
 
 interface Event {
   id: string;
@@ -65,11 +72,11 @@ const Host = () => {
     photoURL: '',
     role: ''
   });
-  const [profileFile, setProfileFile] = useState<File | null>(null);
-  const [coverImage, setCoverImage] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const profileImageRef = useRef<HTMLInputElement>(null);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [viewingEvent, setViewingEvent] = useState<Event | null>(null);
   const navigate = useNavigate();
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   // Initialize formData as state
   const [formData, setFormData] = useState({
@@ -80,7 +87,20 @@ const Host = () => {
     duration: '60',
     category: 'technology',
     maxAttendees: '100',
+    coverImageURL: ''
   });
+
+  // Load Cloudinary script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://upload-widget.cloudinary.com/global/all.js';
+    script.async = true;
+    document.body.appendChild(script);
+    
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   // Handle hash changes for profile/settings
   useEffect(() => {
@@ -201,16 +221,115 @@ const Host = () => {
     setProfileData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleProfileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setProfileFile(e.target.files[0]);
+  // Cloudinary upload function
+  const openCloudinaryWidget = () => {
+    if (!window.cloudinary) {
+      toast({
+        title: "Cloudinary not loaded",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+      return;
     }
+
+    setIsUploading(true);
+    
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+    const widget = window.cloudinary.createUploadWidget(
+      {
+        cloudName: cloudName,
+        uploadPreset: uploadPreset,
+        sources: ['local', 'url', 'camera'],
+        multiple: false,
+        cropping: true,
+        croppingAspectRatio: 16 / 9,
+        showAdvancedOptions: false,
+        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+        maxImageFileSize: 5000000, // 5MB
+        maxImageWidth: 2000,
+        maxImageHeight: 2000,
+        theme: 'minimal',
+        styles: {
+          palette: {
+            window: '#FFFFFF',
+            sourceBg: '#F4F4F5',
+            windowBorder: '#90A0B3',
+            tabIcon: '#000000',
+            inactiveTabIcon: '#555A5F',
+            menuIcons: '#555A5F',
+            link: '#0433FF',
+            action: '#339933',
+            inProgress: '#0433FF',
+            complete: '#339933',
+            error: '#cc0000',
+            textDark: '#000000',
+            textLight: '#FCFFFD'
+          },
+          fonts: {
+            default: null,
+            "'Fira Sans', sans-serif": {
+              url: 'https://fonts.googleapis.com/css?family=Fira+Sans',
+              active: true
+            }
+          }
+        }
+      },
+      (error: any, result: any) => {
+        setIsUploading(false);
+        
+        if (!error && result && result.event === "success") {
+          const imageUrl = result.info.secure_url;
+          setUploadedImageUrl(imageUrl);
+          toast({
+            title: "Image uploaded!",
+            description: "Your image has been successfully uploaded to Cloudinary",
+          });
+        } else if (error) {
+          console.error("Cloudinary widget error:", error);
+          toast({
+            title: "Upload failed",
+            description: "Could not upload your image",
+            variant: "destructive"
+          });
+        }
+      }
+    );
+
+    widget.open();
   };
 
-  const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setCoverImage(e.target.files[0]);
-    }
+  // Copy image URL to clipboard
+  const copyImageUrlToClipboard = () => {
+    if (!uploadedImageUrl) return;
+    
+    navigator.clipboard.writeText(uploadedImageUrl)
+      .then(() => {
+        toast({
+          title: "Copied!",
+          description: "Image URL copied to clipboard",
+        });
+      })
+      .catch(err => {
+        console.error('Failed to copy: ', err);
+        toast({
+          title: "Copy failed",
+          description: "Could not copy image URL",
+          variant: "destructive"
+        });
+      });
+  };
+
+  // Apply image URL to form
+  const applyImageUrlToForm = () => {
+    if (!uploadedImageUrl) return;
+    
+    setFormData(prev => ({ ...prev, coverImageURL: uploadedImageUrl }));
+    toast({
+      title: "Image applied!",
+      description: "Image URL has been added to your event",
+    });
   };
 
   const updateUserProfile = async () => {
@@ -224,15 +343,6 @@ const Host = () => {
       if (provider === 'google.com') collectionName = 'googleauthusers';
       if (provider === 'twitter.com') collectionName = 'twitterauthusers';
 
-      // Upload profile image if selected
-      let photoURL = profileData.photoURL;
-      if (profileFile) {
-        const storage = getStorage();
-        const storageRef = ref(storage, `profile_photos/${user.uid}`);
-        await uploadBytes(storageRef, profileFile);
-        photoURL = await getDownloadURL(storageRef);
-      }
-
       // Update profile in Firestore
       const q = query(collection(db, collectionName), where('email', '==', user.email));
       const querySnapshot = await getDocs(q);
@@ -241,14 +351,9 @@ const Host = () => {
         const docRef = doc(db, collectionName, querySnapshot.docs[0].id);
         await updateDoc(docRef, {
           name: profileData.name,
-          photoURL: photoURL,
           updatedAt: serverTimestamp()
         });
       }
-
-      // Update local state
-      setProfileData(prev => ({ ...prev, photoURL }));
-      setProfileFile(null);
       
       toast({
         title: "Profile updated!",
@@ -275,16 +380,6 @@ const Host = () => {
     }
 
     try {
-      let coverImageURL = '';
-      
-      // Upload cover image if selected
-      if (coverImage) {
-        const storage = getStorage();
-        const storageRef = ref(storage, `event_covers/${user.uid}/${Date.now()}_${coverImage.name}`);
-        await uploadBytes(storageRef, coverImage);
-        coverImageURL = await getDownloadURL(storageRef);
-      }
-
       // Create event in Firestore
       const eventsRef = collection(db, 'events');
       const eventData = {
@@ -301,7 +396,7 @@ const Host = () => {
         createdAt: serverTimestamp(),
         status: 'upcoming',
         attendees: [],
-        coverImageURL
+        coverImageURL: formData.coverImageURL
       };
 
       const docRef = await addDoc(eventsRef, eventData);
@@ -330,13 +425,64 @@ const Host = () => {
         duration: '60',
         category: 'technology',
         maxAttendees: '100',
+        coverImageURL: ''
       });
-      setCoverImage(null);
+      setUploadedImageUrl('');
 
     } catch (error) {
       console.error("Error creating event:", error);
       toast({
         title: "Error creating event",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateEvent = async () => {
+    if (!user || !editingEvent) return;
+    
+    try {
+      // Update event in Firestore
+      const eventRef = doc(db, 'events', editingEvent.id);
+      await updateDoc(eventRef, {
+        title: formData.title,
+        description: formData.description,
+        date: formData.date,
+        time: formData.time,
+        duration: formData.duration,
+        category: formData.category,
+        maxAttendees: formData.maxAttendees,
+        eventType,
+        coverImageURL: formData.coverImageURL
+      });
+
+      // Update local state
+      setHostedEvents(prev => 
+        prev.map(event => 
+          event.id === editingEvent.id 
+            ? { 
+                ...event, 
+                ...formData, 
+                eventType,
+                status: event.status // Preserve status
+              } 
+            : event
+        )
+      );
+
+      toast({
+        title: "Event updated!",
+        description: "Your event has been successfully updated",
+      });
+
+      setEditingEvent(null);
+      setUploadedImageUrl('');
+
+    } catch (error) {
+      console.error("Error updating event:", error);
+      toast({
+        title: "Error updating event",
         description: "Please try again later",
         variant: "destructive"
       });
@@ -404,6 +550,40 @@ const Host = () => {
     navigate('/host');
   };
 
+  const openEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setFormData({
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      time: event.time,
+      duration: event.duration,
+      category: event.category,
+      maxAttendees: event.maxAttendees,
+      coverImageURL: event.coverImageURL || ''
+    });
+    setEventType(event.eventType);
+    setUploadedImageUrl('');
+  };
+
+  const openViewEvent = (event: Event) => {
+    setViewingEvent(event);
+  };
+
+  const closeEventModal = () => {
+    setEditingEvent(null);
+    setViewingEvent(null);
+    setUploadedImageUrl('');
+  };
+
+  const handleEventSubmit = async () => {
+    if (editingEvent) {
+      await handleUpdateEvent();
+    } else {
+      await handleCreateEvent();
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <DashboardNavbar userType="host" />
@@ -417,22 +597,41 @@ const Host = () => {
                 Manage your webinars, seminars, and events
               </p>
             </div>
-            <Button onClick={() => setShowForm(true)}>
+            <Button onClick={() => {
+              setEditingEvent(null);
+              setShowForm(true);
+              setFormData({
+                title: '',
+                description: '',
+                date: '',
+                time: '',
+                duration: '60',
+                category: 'technology',
+                maxAttendees: '100',
+                coverImageURL: ''
+              });
+              setUploadedImageUrl('');
+            }}>
               <Plus className="mr-2 h-4 w-4" />
               Create New Event
             </Button>
           </div>
 
-          {/* Event Creation Form */}
-          {showForm && (
+          {/* Event Creation/Edit Form */}
+          {(showForm || editingEvent) && (
             <Card className="mb-8">
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Create New Event</CardTitle>
+                  <CardTitle>
+                    {editingEvent ? "Edit Event" : "Create New Event"}
+                  </CardTitle>
                   <Button 
                     variant="ghost" 
                     size="icon"
-                    onClick={() => setShowForm(false)}
+                    onClick={() => {
+                      setShowForm(false);
+                      setEditingEvent(null);
+                    }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -551,48 +750,195 @@ const Host = () => {
                     </div>
                     
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Cover Image</label>
-                      <div 
-                        className="flex items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        {coverImage ? (
-                          <img 
-                            src={URL.createObjectURL(coverImage)} 
-                            alt="Cover preview" 
-                            className="h-full w-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="text-center">
-                            <p className="text-sm text-muted-foreground">
-                              Drag & drop or click to upload
-                            </p>
-                            <Button variant="outline" className="mt-2">
-                              Select Image
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleCoverImageChange}
-                        accept="image/*"
-                        className="hidden"
+                      <label className="block text-sm font-medium mb-1">Cover Image URL</label>
+                      <Input 
+                        name="coverImageURL"
+                        value={formData.coverImageURL}
+                        onChange={handleInputChange}
+                        placeholder="Paste image URL here"
                       />
+                    </div>
+                    
+                    {/* Cloudinary image upload section */}
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                      <h3 className="font-medium mb-3 text-center">Image Upload Tool</h3>
+                      
+                      <div className="grid grid-cols-3 gap-4">
+                        {/* Upload Section */}
+                        <div 
+                          className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer bg-white min-h-[120px]"
+                          onClick={openCloudinaryWidget}
+                        >
+                          {isUploading ? (
+                            <div className="text-center py-4">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                              <p className="text-sm text-muted-foreground">Uploading to Cloudinary...</p>
+                            </div>
+                          ) : uploadedImageUrl ? (
+                            <img 
+                              src={uploadedImageUrl} 
+                              alt="Uploaded preview" 
+                              className="h-24 w-full object-contain mb-2"
+                            />
+                          ) : (
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">
+                                Click to upload
+                              </p>
+                              <Button variant="outline" className="mt-2">
+                                Upload to Cloudinary
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Copy Button */}
+                        <div className="flex items-center justify-center">
+                          <Button 
+                            onClick={copyImageUrlToClipboard}
+                            disabled={!uploadedImageUrl || isUploading}
+                            className="w-full h-12"
+                          >
+                            <Copy className="mr-2 h-4 w-4" /> Copy URL
+                          </Button>
+                        </div>
+                        
+                        {/* Apply Button */}
+                        <div className="flex items-center justify-center">
+                          <Button 
+                            onClick={applyImageUrlToForm}
+                            disabled={!uploadedImageUrl || isUploading}
+                            className="w-full h-12"
+                          >
+                            <Save className="mr-2 h-4 w-4" /> Apply to Form
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {uploadedImageUrl && (
+                        <div className="mt-3 text-center">
+                          <p className="text-xs text-muted-foreground break-all">
+                            {uploadedImageUrl.substring(0, 40)}...
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowForm(false)}>
+                <Button variant="outline" onClick={() => {
+                  setShowForm(false);
+                  setEditingEvent(null);
+                }}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateEvent}>
-                  Create Event
+                <Button onClick={handleEventSubmit}>
+                  {editingEvent ? "Update Event" : "Create Event"}
                 </Button>
               </CardFooter>
             </Card>
+          )}
+
+          {/* Event View Modal */}
+          {viewingEvent && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>{viewingEvent.title}</CardTitle>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setViewingEvent(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Event Type</label>
+                        <p className="text-sm">{viewingEvent.eventType}</p>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Description</label>
+                        <p className="text-sm">{viewingEvent.description}</p>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Category</label>
+                        <p className="text-sm capitalize">{viewingEvent.category}</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Date</label>
+                          <p className="text-sm">
+                            {format(new Date(viewingEvent.date), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Time</label>
+                          <p className="text-sm">{viewingEvent.time}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Duration</label>
+                          <p className="text-sm">{viewingEvent.duration} minutes</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Max Attendees</label>
+                          <p className="text-sm">{viewingEvent.maxAttendees}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Cover Image</label>
+                        {viewingEvent.coverImageURL ? (
+                          <img 
+                            src={viewingEvent.coverImageURL} 
+                            alt="Event cover" 
+                            className="w-full h-48 object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-32 bg-gray-100 rounded-lg">
+                            <p className="text-sm text-muted-foreground">No cover image</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setViewingEvent(null);
+                      openEditEvent(viewingEvent);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                  </Button>
+                  <Button 
+                    variant="destructive"
+                    onClick={() => {
+                      deleteEvent(viewingEvent.id);
+                      setViewingEvent(null);
+                    }}
+                  >
+                    <Trash className="mr-2 h-4 w-4" /> Delete
+                  </Button>
+                </CardFooter>
+              </Card>
+            </div>
           )}
 
           {/* Hosted Events List */}
@@ -636,8 +982,19 @@ const Host = () => {
                           {event.status}
                         </Badge>
                         <div className="flex space-x-2">
-                          <Button variant="outline" size="sm">
-                            Manage
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openViewEvent(event)}
+                          >
+                            <Eye size={16} className="mr-1" /> View
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openEditEvent(event)}
+                          >
+                            <Pencil size={16} className="mr-1" /> Edit
                           </Button>
                           <Button 
                             variant="destructive" 
@@ -704,26 +1061,9 @@ const Host = () => {
                   <div className="flex items-center space-x-6">
                     <div className="relative">
                       <img 
-                        src={
-                          profileFile ? URL.createObjectURL(profileFile) : 
-                          profileData.photoURL || '/placeholder-user.jpg'
-                        } 
+                        src={profileData.photoURL || '/placeholder-user.jpg'} 
                         alt="Profile" 
                         className="w-24 h-24 rounded-full object-cover border-2 border-blue-500"
-                      />
-                      <Button 
-                        variant="outline"
-                        className="absolute -bottom-2 -right-2"
-                        onClick={() => profileImageRef.current?.click()}
-                      >
-                        <Edit size={16} />
-                      </Button>
-                      <input
-                        type="file"
-                        ref={profileImageRef}
-                        onChange={handleProfileFileChange}
-                        accept="image/*"
-                        className="hidden"
                       />
                     </div>
                     <div className="flex-1">

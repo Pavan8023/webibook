@@ -352,10 +352,12 @@ const Host = () => {
     const interval = setInterval(cleanupPastEvents, 600000);
     return () => clearInterval(interval);
   }, [hostedEvents]);
+type DashboardNavbarProps = {
+  userType: string;
+};
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Fixed: Removed userType prop from DashboardNavbar */}
       <DashboardNavbar />
 
       <main className="flex-grow pt-16">
@@ -691,43 +693,6 @@ const Host = () => {
             </Card>
           </div>
 
-          {/* Settings Section */}
-          <div ref={settingsRef} className="pt-20 -mt-20">
-            <Card className="my-8">
-              <CardHeader>
-                <CardTitle>Account Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-medium mb-3">Notification Preferences</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input type="checkbox" id="email-notifications" className="mr-2" />
-                        <label htmlFor="email-notifications">Email notifications</label>
-                      </div>
-                      <div className="flex items-center">
-                        <input type="checkbox" id="push-notifications" className="mr-2" />
-                        <label htmlFor="push-notifications">Push notifications</label>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-medium mb-3">Security</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <Button variant="outline">Change Password</Button>
-                      </div>
-                      <div>
-                        <Button variant="outline">Two-Factor Authentication</Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </main>
       

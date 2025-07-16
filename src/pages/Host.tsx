@@ -142,7 +142,7 @@ const Host = () => {
         
         querySnapshot.forEach(doc => {
           const eventData = doc.data() as Event;
-          events.push({ id: doc.id, ...eventData });
+          events.push({ ...eventData, id: doc.id });
           
           // Calculate attendance for analytics
           if (eventData.attendees && eventData.maxAttendees) {

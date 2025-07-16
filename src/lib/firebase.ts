@@ -2,7 +2,8 @@ import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
   GoogleAuthProvider, 
-  TwitterAuthProvider 
+  TwitterAuthProvider,
+  signOut // ← add this import
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -21,3 +22,12 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 export const twitterProvider = new TwitterAuthProvider();
+
+// ✅ Add and export logout function
+export const logout = async () => {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+};

@@ -1,9 +1,8 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -15,10 +14,29 @@ import WebinarDetails from "./pages/WebinarDetails";
 import HostWebinar from "./pages/HostWebinar";
 import NotFound from "./pages/NotFound";
 import Tnc from "./pages/Tnc";
-import About from "./pages/Privacy";
 import Privacy from "./pages/Privacy";
+import Attendee from "./pages/Attendee";
+import Host from "./pages/Host";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "./lib/firebase";
+import { Settings } from "lucide-react";
 
 const queryClient = new QueryClient();
+
+// Protected route component
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const [user, loading] = useAuthState(auth);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -30,15 +48,37 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/host" element={<Host />} />
+          <Route path="/attendee" element={<Attendee />} />
+          
+
+          {/* Protected routes */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/attendee" element={
+            <ProtectedRoute>
+              <Attendee />
+            </ProtectedRoute>
+          } />
+          <Route path="/host" element={
+            <ProtectedRoute>
+              <Host />
+            </ProtectedRoute>
+          } />
+
+          {/* Public routes */}
           <Route path="/discover" element={<Discover />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/webinar/:id" element={<WebinarDetails />} />
           <Route path="/host-webinar" element={<HostWebinar />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="/tnc" element={<Tnc />} />
           <Route path="/privacy" element={<Privacy />} />
+
+          {/* 404 route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

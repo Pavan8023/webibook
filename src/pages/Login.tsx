@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
@@ -23,7 +23,11 @@ import {
   providerSignIn 
 } from '@/services/auth';
 import { RoleSelectionModal } from '@/components/ui/RoleSelectionModal';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
+// Updated form schema with role selection
 const formSchema = z.object({
   email: z.string().email({
     message: "Please enter a valid email address.",
@@ -40,9 +44,11 @@ type FormValues = z.infer<typeof formSchema>;
 
 const Login = () => {
   const navigate = useNavigate();
+  const [user, loadingAuth] = useAuthState(auth);
   const [isLoading, setIsLoading] = useState(false);
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'twitter'>('google');
+  const [userRole, setUserRole] = useState<string | null>(null);
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -52,6 +58,42 @@ const Login = () => {
       role: "attendee",
     },
   });
+
+  // Fetch user role from Firestore
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user) return;
+      
+      setIsLoading(true);
+      try {
+        // Check all possible collections
+        const collections = ['googleauthusers', 'twitterauthusers', 'signupfromusers'];
+        
+        for (const collection of collections) {
+          const docRef = doc(db, collection, user.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            setUserRole(docSnap.data().role);
+            break;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [user]);
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (userRole) {
+      navigate(userRole === 'hoster' ? '/host' : '/attendee');
+    }
+  }, [userRole, navigate]);
 
   const handleEmailLogin = async (values: FormValues) => {
     setIsLoading(true);
@@ -64,7 +106,11 @@ const Login = () => {
       });
       
       // Redirect based on role
-      navigate(values.role === 'hoster' ? "/hoster" : "/attendee");
+      if (values.role === 'hoster') {
+        navigate("/host");
+      } else {
+        navigate("/attendee");
+      }
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -86,37 +132,32 @@ const Login = () => {
         description: `Welcome back via ${selectedProvider}`,
       });
       
-      navigate(role === 'hoster' ? "/hoster" : "/attendee");
-    } catch (error: any) {
-    console.error(`${selectedProvider} auth error:`, error);
-    
-    let errorMessage = "Authentication failed";
-    if (error.code) {
-      switch (error.code) {
-        case 'auth/unauthorized-domain':
-          errorMessage = "Domain not authorized - check Firebase config";
-          break;
-        case 'auth/invalid-api-key':
-          errorMessage = "Invalid API key - check environment variables";
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = "Network error - check internet connection";
-          break;
-        default:
-          errorMessage = error.message || "Authentication error";
+      // Redirect based on role
+      if (role === 'hoster') {
+        navigate("/host");
+      } else {
+        navigate("/attendee");
       }
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Authentication error",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+      setProviderModalOpen(false);
     }
-    
-    toast({
-      title: "Login failed",
-      description: errorMessage,
-      variant: "destructive"
-    });
-  } finally {
-    setIsLoading(false);
-    setProviderModalOpen(false);
+  };
+
+  if (loadingAuth || (user && !userRole)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-webi-blue"></div>
+        <p className="mt-4 text-lg">Loading your account...</p>
+      </div>
+    );
   }
-};
 
   return (
     <div className="min-h-screen flex flex-col">

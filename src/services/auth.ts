@@ -41,29 +41,24 @@ export const emailLogin = async (
   return await signInWithEmailAndPassword(auth, email, password);
 };
 
-// Add this to providerSignIn function
+// Provider sign-in
 export const providerSignIn = async (
   provider: 'google' | 'twitter',
   role: 'attendee' | 'hoster'
 ) => {
-  try {
-    const selectedProvider = provider === 'google' ? googleProvider : twitterProvider;
-    const userCredential = await signInWithPopup(auth, selectedProvider);
-    
-    const collectionName = provider === 'google' 
-      ? 'googleauthusers' 
-      : 'twitterauthusers';
-    
-    await setDoc(doc(db, collectionName, userCredential.user.uid), {
-      name: userCredential.user.displayName || '',
-      email: userCredential.user.email || '',
-      role,
-      createdAt: new Date()
-    });
-    
-    return userCredential;
-  } catch (error) {
-    console.error(`${provider} sign-in error:`, error);
-    throw error;
-  }
+  const selectedProvider = provider === 'google' ? googleProvider : twitterProvider;
+  const userCredential = await signInWithPopup(auth, selectedProvider);
+  
+  const collectionName = provider === 'google' 
+    ? 'googleauthusers' 
+    : 'twitterauthusers';
+  
+  await setDoc(doc(db, collectionName, userCredential.user.uid), {
+    name: userCredential.user.displayName || '',
+    email: userCredential.user.email || '',
+    role,
+    createdAt: new Date()
+  });
+  
+  return userCredential;
 };

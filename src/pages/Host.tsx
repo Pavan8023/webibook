@@ -352,9 +352,6 @@ const Host = () => {
     const interval = setInterval(cleanupPastEvents, 600000);
     return () => clearInterval(interval);
   }, [hostedEvents]);
-type DashboardNavbarProps = {
-  userType: string;
-};
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">

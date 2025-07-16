@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, 
@@ -8,19 +8,24 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, logout } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 
-export const DashboardNavbar = () => {
+interface DashboardNavbarProps {
+  userType: 'host' | 'attendee';
+}
+
+export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, loadingAuth] = useAuthState(auth);
   const [userData, setUserData] = useState<any>(null);
   const [loadingUserData, setLoadingUserData] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -60,7 +65,8 @@ export const DashboardNavbar = () => {
             name: userDoc.name || user.displayName,
             email: user.email,
             role: userDoc.role,
-            provider: userDoc.provider || 'email'
+            provider: userDoc.provider || 'email',
+            photoURL: userDoc.photoURL || user.photoURL
           });
         } else {
           // Fallback to basic user info
@@ -68,7 +74,8 @@ export const DashboardNavbar = () => {
             name: user.displayName || user.email?.split('@')[0],
             email: user.email,
             role: 'attendee',
-            provider: 'unknown'
+            provider: 'unknown',
+            photoURL: user.photoURL
           });
         }
       } catch (error) {
@@ -82,14 +89,17 @@ export const DashboardNavbar = () => {
   }, [user]);
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await logout();
     setIsMobileMenuOpen(false);
     navigate('/');
   };
 
   const getDashboardLink = () => {
-    if (!userData) return '/';
-    return userData.role === 'hoster' ? '/host' : '/attendee';
+    return userType === 'host' ? '/host' : '/attendee';
+  };
+
+  const isActive = (hash: string) => {
+    return location.hash === hash;
   };
 
   return (
@@ -100,7 +110,7 @@ export const DashboardNavbar = () => {
     >
       <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2">
         <Link 
-          to="/host" 
+          to={getDashboardLink()} 
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 mr-2">
@@ -111,11 +121,23 @@ export const DashboardNavbar = () => {
         </Link>
         
         <nav className="hidden md:flex items-center space-x-1">
-          <Link to="/host" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
-            Home
+          <Link 
+            to={getDashboardLink()} 
+            className={`px-4 py-2 font-medium button-transition ${isActive('') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+          >
+            Dashboard
           </Link>
-          <Link to="/profile" className="px-4 py-2 text-foreground/80 hover:text-foreground font-medium button-transition">
-            profile
+          <Link 
+            to={`${getDashboardLink()}#profile`} 
+            className={`px-4 py-2 font-medium button-transition ${isActive('#profile') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+          >
+            Profile
+          </Link>
+          <Link 
+            to={`${getDashboardLink()}#settings`} 
+            className={`px-4 py-2 font-medium button-transition ${isActive('#settings') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+          >
+            Settings
           </Link>
         </nav>
 
@@ -127,18 +149,11 @@ export const DashboardNavbar = () => {
             </div>
           ) : user ? (
             <>
-              <Button 
-                variant="outline" 
-                onClick={() => navigate(getDashboardLink())}
-              >
-                {userData?.role === 'hoster' ? 'Host Dashboard' : 'My Dashboard'}
-              </Button>
-              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-10 w-10 rounded-full p-0">
                     <Avatar>
-                      <AvatarImage src={user.photoURL || undefined} />
+                      <AvatarImage src={userData?.photoURL || undefined} />
                       <AvatarFallback className="bg-webi-blue text-white">
                         {userData?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                       </AvatarFallback>
@@ -157,7 +172,7 @@ export const DashboardNavbar = () => {
                       </Badge>
                     </p>
                   </div>
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <DropdownMenuItem onClick={() => navigate(`${getDashboardLink()}#profile`)}>
                     Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout}>
@@ -210,18 +225,25 @@ export const DashboardNavbar = () => {
       >
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
           <Link 
-            to="/host" 
-            className="text-lg font-medium px-4 py-2"
+            to={getDashboardLink()} 
+            className={`text-lg font-medium px-4 py-2 ${isActive('') ? 'text-blue-600' : ''}`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
-            Home
+            Dashboard
           </Link>
           <Link 
-            to="/profile" 
-            className="text-lg font-medium px-4 py-2"
+            to={`${getDashboardLink()}#profile`} 
+            className={`text-lg font-medium px-4 py-2 ${isActive('#profile') ? 'text-blue-600' : ''}`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Profile
+          </Link>
+          <Link 
+            to={`${getDashboardLink()}#settings`} 
+            className={`text-lg font-medium px-4 py-2 ${isActive('#settings') ? 'text-blue-600' : ''}`}
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            Settings
           </Link>
 
           <div className="flex flex-col space-y-4 mt-6">
@@ -238,17 +260,7 @@ export const DashboardNavbar = () => {
                       variant="outline" 
                       className="w-full"
                       onClick={() => {
-                        navigate(getDashboardLink());
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      {userData?.role === 'hoster' ? 'Host Dashboard' : 'My Dashboard'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => {
-                        navigate('/profile');
+                        navigate(`${getDashboardLink()}#profile`);
                         setIsMobileMenuOpen(false);
                       }}
                     >
@@ -284,4 +296,3 @@ export const DashboardNavbar = () => {
     </header>
   );
 };
-

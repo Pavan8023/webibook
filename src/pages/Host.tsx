@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { DashboardNavbar } from '@/components/layout/DashboardNavbar';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, Edit, Trash } from 'lucide-react';
+import { Plus, X, Edit, Save, Trash } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -21,16 +22,15 @@ import {
   getDocs, 
   deleteDoc, 
   doc, 
-  updateDoc 
+  updateDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { toast } from '@/components/ui/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Navbar } from '@/components/layout/Navbar';
 
-// Define event type
 interface Event {
   id: string;
   title: string;
@@ -46,16 +46,19 @@ interface Event {
   createdAt: Date;
   status: string;
   attendees: string[];
+  eventType: string;
 }
 
 const Host = () => {
   const [user] = useAuthState(auth);
+  const location = useLocation();
   const [showForm, setShowForm] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [eventType, setEventType] = useState('seminar');
   const [hostedEvents, setHostedEvents] = useState<Event[]>([]);
   const [totalEvents, setTotalEvents] = useState(0);
   const [averageAttendance, setAverageAttendance] = useState(0);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
@@ -65,7 +68,7 @@ const Host = () => {
   const [profileFile, setProfileFile] = useState<File | null>(null);
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
+  const profileImageRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   // Initialize formData as state
@@ -79,19 +82,20 @@ const Host = () => {
     maxAttendees: '100',
   });
 
-  // Refs for scrolling to sections
-  const profileRef = useRef<HTMLDivElement>(null);
-  const settingsRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to section when route changes
+  // Handle hash changes for profile/settings
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash === '#profile' && profileRef.current) {
-      profileRef.current.scrollIntoView({ behavior: 'smooth' });
-    } else if (hash === '#settings' && settingsRef.current) {
-      settingsRef.current.scrollIntoView({ behavior: 'smooth' });
+    const hash = location.hash;
+    if (hash === '#profile') {
+      setShowProfile(true);
+      setShowSettings(false);
+    } else if (hash === '#settings') {
+      setShowSettings(true);
+      setShowProfile(false);
+    } else {
+      setShowProfile(false);
+      setShowSettings(false);
     }
-  }, []);
+  }, [location]);
 
   // Fetch user profile data
   useEffect(() => {
@@ -141,8 +145,24 @@ const Host = () => {
         let totalCapacity = 0;
         
         querySnapshot.forEach(doc => {
-          const eventData = doc.data() as Event;
-          events.push({ ...eventData, id: doc.id });
+          const eventData = doc.data();
+          events.push({ 
+            id: doc.id,
+            title: eventData.title,
+            description: eventData.description,
+            date: eventData.date,
+            time: eventData.time,
+            duration: eventData.duration,
+            category: eventData.category,
+            maxAttendees: eventData.maxAttendees,
+            coverImageURL: eventData.coverImageURL,
+            hostId: eventData.hostId,
+            hostName: eventData.hostName,
+            createdAt: eventData.createdAt.toDate(),
+            status: eventData.status,
+            attendees: eventData.attendees,
+            eventType: eventData.eventType
+          });
           
           // Calculate attendance for analytics
           if (eventData.attendees && eventData.maxAttendees) {
@@ -160,6 +180,11 @@ const Host = () => {
         }
       } catch (error) {
         console.error('Error fetching events:', error);
+        toast({
+          title: "Error loading events",
+          description: "Failed to fetch your hosted events",
+          variant: "destructive"
+        });
       }
     };
 
@@ -217,13 +242,12 @@ const Host = () => {
         await updateDoc(docRef, {
           name: profileData.name,
           photoURL: photoURL,
-          updatedAt: new Date()
+          updatedAt: serverTimestamp()
         });
       }
 
       // Update local state
       setProfileData(prev => ({ ...prev, photoURL }));
-      setIsEditingProfile(false);
       setProfileFile(null);
       
       toast({
@@ -264,17 +288,33 @@ const Host = () => {
       // Create event in Firestore
       const eventsRef = collection(db, 'events');
       const eventData = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        date: formData.date,
+        time: formData.time,
+        duration: formData.duration,
+        category: formData.category,
+        maxAttendees: formData.maxAttendees,
+        eventType,
         hostId: user.uid,
-        hostName: profileData.name,
-        createdAt: new Date(),
+        hostName: profileData.name || user.displayName || 'Host',
+        createdAt: serverTimestamp(),
         status: 'upcoming',
         attendees: [],
-        coverImageURL,
-        eventType
+        coverImageURL
       };
 
-      await addDoc(eventsRef, eventData);
+      const docRef = await addDoc(eventsRef, eventData);
+
+      // Add to local state immediately
+      const newEvent = {
+        id: docRef.id,
+        ...eventData,
+        createdAt: new Date()
+      } as Event;
+      
+      setHostedEvents(prev => [...prev, newEvent]);
+      setTotalEvents(prev => prev + 1);
 
       toast({
         title: "Event created!",
@@ -293,16 +333,13 @@ const Host = () => {
       });
       setCoverImage(null);
 
-      // Redirect to event management page
-      navigate('/host');
-
     } catch (error) {
+      console.error("Error creating event:", error);
       toast({
         title: "Error creating event",
         description: "Please try again later",
         variant: "destructive"
       });
-      console.error('Error creating event:', error);
     }
   };
 
@@ -317,12 +354,12 @@ const Host = () => {
         description: "Your event has been removed",
       });
     } catch (error) {
+      console.error("Error deleting event:", error);
       toast({
         title: "Error deleting event",
         description: "Please try again later",
         variant: "destructive"
       });
-      console.error('Error deleting event:', error);
     }
   };
 
@@ -337,7 +374,11 @@ const Host = () => {
       });
 
       for (const event of eventsToDelete) {
-        await deleteDoc(doc(db, 'events', event.id));
+        try {
+          await deleteDoc(doc(db, 'events', event.id));
+        } catch (error) {
+          console.error("Error deleting expired event:", error);
+        }
       }
 
       if (eventsToDelete.length > 0) {
@@ -353,9 +394,19 @@ const Host = () => {
     return () => clearInterval(interval);
   }, [hostedEvents]);
 
+  const closeProfileSection = () => {
+    setShowProfile(false);
+    navigate('/host');
+  };
+
+  const closeSettingsSection = () => {
+    setShowSettings(false);
+    navigate('/host');
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar/>
+      <DashboardNavbar userType="host" />
 
       <main className="flex-grow pt-16">
         <div className="container py-6 md:py-8">
@@ -634,99 +685,119 @@ const Host = () => {
             </Card>
           </div>
 
-          {/* Profile Section */}
-          <div ref={profileRef} className="pt-20 -mt-20">
-            <Card className="my-8">
-              <CardHeader>
-                <CardTitle>Profile Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center space-x-6">
-                  <div className="relative">
-                    <img 
-                      src={
-                        profileFile ? URL.createObjectURL(profileFile) : 
-                        profileData.photoURL || '/placeholder-user.jpg'
-                      } 
-                      alt="Profile" 
-                      className="w-24 h-24 rounded-full object-cover border-2 border-blue-500"
-                    />
-                    <Button 
-                      variant="outline"
-                      className="absolute -bottom-2 -right-2"
-                      onClick={() => coverInputRef.current?.click()}
-                    >
-                      <Edit size={16} />
-                    </Button>
-                    <input
-                      type="file"
-                      ref={coverInputRef}
-                      onChange={handleProfileFileChange}
-                      accept="image/*"
-                      className="hidden"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium mb-1">Full Name</label>
-                      <Input 
-                        value={profileData.name}
-                        onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+          {/* Profile Section - Only shown when active */}
+          {showProfile && (
+            <div className="pt-8">
+              <Card className="my-8 relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="absolute top-4 right-4"
+                  onClick={closeProfileSection}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardHeader>
+                  <CardTitle>Profile Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center space-x-6">
+                    <div className="relative">
+                      <img 
+                        src={
+                          profileFile ? URL.createObjectURL(profileFile) : 
+                          profileData.photoURL || '/placeholder-user.jpg'
+                        } 
+                        alt="Profile" 
+                        className="w-24 h-24 rounded-full object-cover border-2 border-blue-500"
+                      />
+                      <Button 
+                        variant="outline"
+                        className="absolute -bottom-2 -right-2"
+                        onClick={() => profileImageRef.current?.click()}
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <input
+                        type="file"
+                        ref={profileImageRef}
+                        onChange={handleProfileFileChange}
+                        accept="image/*"
+                        className="hidden"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Email</label>
-                      <Input 
-                        value={profileData.email}
-                        disabled
-                      />
+                    <div className="flex-1">
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Full Name</label>
+                        <Input 
+                          value={profileData.name}
+                          onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Email</label>
+                        <Input 
+                          value={profileData.email}
+                          disabled
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end">
-                <Button onClick={updateUserProfile}>Save Changes</Button>
-              </CardFooter>
-            </Card>
-          </div>
+                </CardContent>
+                <CardFooter className="flex justify-end">
+                  <Button onClick={updateUserProfile}>Save Changes</Button>
+                </CardFooter>
+              </Card>
+            </div>
+          )}
 
-          {/* Settings Section */}
-          <div ref={settingsRef} className="pt-20 -mt-20">
-            <Card className="my-8">
-              <CardHeader>
-                <CardTitle>Account Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-medium mb-3">Notification Preferences</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <input type="checkbox" id="email-notifications" className="mr-2" />
-                        <label htmlFor="email-notifications">Email notifications</label>
+          {/* Settings Section - Only shown when active */}
+          {showSettings && (
+            <div className="pt-8">
+              <Card className="my-8 relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="absolute top-4 right-4"
+                  onClick={closeSettingsSection}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardHeader>
+                  <CardTitle>Account Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="font-medium mb-3">Notification Preferences</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <input type="checkbox" id="email-notifications" className="mr-2" defaultChecked />
+                          <label htmlFor="email-notifications">Email notifications</label>
+                        </div>
+                        <div className="flex items-center">
+                          <input type="checkbox" id="push-notifications" className="mr-2" defaultChecked />
+                          <label htmlFor="push-notifications">Push notifications</label>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <input type="checkbox" id="push-notifications" className="mr-2" />
-                        <label htmlFor="push-notifications">Push notifications</label>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium mb-3">Security</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <Button variant="outline">Change Password</Button>
+                        </div>
+                        <div>
+                          <Button variant="outline">Two-Factor Authentication</Button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  
-                  <div>
-                    <h3 className="font-medium mb-3">Security</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <Button variant="outline">Change Password</Button>
-                      </div>
-                      <div>
-                        <Button variant="outline">Two-Factor Authentication</Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </main>
       

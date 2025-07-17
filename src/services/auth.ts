@@ -8,12 +8,47 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   signInWithPopup,
-  UserCredential
+  UserCredential,
+  updateProfile
 } from 'firebase/auth';
 import { 
   doc, 
-  setDoc 
+  setDoc,
+  getDoc
 } from 'firebase/firestore';
+import { serverTimestamp } from 'firebase/firestore';
+
+// Unified function to create/update user in Firestore
+const createOrUpdateUser = async (
+  uid: string,
+  data: {
+    name: string;
+    email: string;
+    role: 'attendee' | 'hoster';
+    type: 'email' | 'google' | 'twitter';
+    photoURL?: string | null;
+  }
+) => {
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+  
+  const userData = {
+    ...data,
+    updatedAt: serverTimestamp(),
+    lastLogin: serverTimestamp(),
+  };
+
+  if (userDoc.exists()) {
+    // Update existing user
+    await setDoc(userRef, userData, { merge: true });
+  } else {
+    // Create new user
+    await setDoc(userRef, {
+      ...userData,
+      createdAt: serverTimestamp(),
+    });
+  }
+};
 
 // Email signup
 export const emailSignUp = async (
@@ -23,12 +58,18 @@ export const emailSignUp = async (
   role: 'attendee' | 'hoster'
 ) => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  await setDoc(doc(db, 'signupfromusers', userCredential.user.uid), {
+  
+  // Update auth profile
+  await updateProfile(userCredential.user, { displayName: name });
+  
+  // Create user in Firestore
+  await createOrUpdateUser(userCredential.user.uid, {
     name,
     email,
     role,
-    createdAt: new Date()
+    type: 'email',
   });
+  
   return userCredential;
 };
 
@@ -38,7 +79,17 @@ export const emailLogin = async (
   password: string, 
   role: 'attendee' | 'hoster'
 ) => {
-  return await signInWithEmailAndPassword(auth, email, password);
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  
+  // Update user role in Firestore
+  await createOrUpdateUser(userCredential.user.uid, {
+    name: userCredential.user.displayName || '',
+    email: userCredential.user.email || '',
+    role,
+    type: 'email',
+  });
+  
+  return userCredential;
 };
 
 // Provider sign-in
@@ -49,15 +100,13 @@ export const providerSignIn = async (
   const selectedProvider = provider === 'google' ? googleProvider : twitterProvider;
   const userCredential = await signInWithPopup(auth, selectedProvider);
   
-  const collectionName = provider === 'google' 
-    ? 'googleauthusers' 
-    : 'twitterauthusers';
-  
-  await setDoc(doc(db, collectionName, userCredential.user.uid), {
+  // Create/update user in Firestore
+  await createOrUpdateUser(userCredential.user.uid, {
     name: userCredential.user.displayName || '',
     email: userCredential.user.email || '',
     role,
-    createdAt: new Date()
+    type: provider,
+    photoURL: userCredential.user.photoURL || null,
   });
   
   return userCredential;

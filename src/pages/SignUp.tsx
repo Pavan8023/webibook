@@ -13,8 +13,7 @@ import {
   FormMessage
 } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Textarea } from '@/components/ui/textarea';
-import { Calendar, User, Mail, Lock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Calendar, User, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';

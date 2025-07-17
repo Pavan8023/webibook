@@ -26,7 +26,7 @@ import { RoleSelectionModal } from '@/components/ui/RoleSelectionModal';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { browserSessionPersistence, setPersistence } from 'firebase/auth'; // Added
+import { browserSessionPersistence, setPersistence } from 'firebase/auth';
 
 // Updated form schema with role selection
 const formSchema = z.object({
@@ -75,17 +75,12 @@ const Login = () => {
       
       setIsLoading(true);
       try {
-        // Check all possible collections
-        const collections = ['googleauthusers', 'twitterauthusers', 'signupfromusers'];
+        // Get user from unified users collection
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
         
-        for (const collection of collections) {
-          const docRef = doc(db, collection, user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            setUserRole(docSnap.data().role);
-            break;
-          }
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data().role);
         }
       } catch (error) {
         console.error('Error fetching user role:', error);

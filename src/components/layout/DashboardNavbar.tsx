@@ -132,7 +132,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
         isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-transparent'
       }`}
     >
-      <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2">
+      <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2 px-4 sm:px-6">
         <Link 
           to={getDashboardLink()} 
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
@@ -147,19 +147,31 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
         <nav className="hidden md:flex items-center space-x-1">
           <Link 
             to={getDashboardLink()} 
-            className={`px-4 py-2 font-medium button-transition ${isActive('') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium transition-colors ${
+              location.pathname === getDashboardLink() && location.hash === '' 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-foreground/80 hover:text-foreground'
+            }`}
           >
             Dashboard
           </Link>
           <Link 
             to={`${getDashboardLink()}#profile`} 
-            className={`px-4 py-2 font-medium button-transition ${isActive('profile') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium transition-colors ${
+              isActive('profile') 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-foreground/80 hover:text-foreground'
+            }`}
           >
             Profile
           </Link>
           <Link 
             to={`${getDashboardLink()}#settings`} 
-            className={`px-4 py-2 font-medium button-transition ${isActive('settings') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium transition-colors ${
+              isActive('settings') 
+                ? 'text-blue-600 border-b-2 border-blue-600' 
+                : 'text-foreground/80 hover:text-foreground'
+            }`}
           >
             Settings
           </Link>
@@ -191,18 +203,17 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-56">
                   <div className="px-4 py-2">
-                    <p className="font-medium">{userData?.name || user.email}</p>
-                    <p className="text-sm text-muted-foreground truncate max-w-[180px]">
+                    <p className="font-medium truncate">{userData?.name || user.email}</p>
+                    <p className="text-sm text-muted-foreground truncate">
                       {user.email}
                     </p>
-                    <p className="text-xs mt-1">
+                    <p className="text-xs mt-1 flex items-center gap-2">
                       <Badge variant="secondary" className="flex items-center gap-1">
                         {getProviderIcon()}
                         <span className="capitalize">{userData?.type || 'email'}</span>
                       </Badge>
-                      <span className="mx-2">•</span>
                       <Badge variant="outline">
                         {userData?.role || 'attendee'}
                       </Badge>
@@ -221,7 +232,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
               </DropdownMenu>
             </>
           ) : (
-            <>
+            <div className="flex items-center gap-3">
               <Link to="/login">
                 <Button variant="outline" className="font-medium">
                   Sign In
@@ -232,22 +243,44 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                   Get Started
                 </Button>
               </Link>
-            </>
+            </div>
           )}
         </div>
 
         <button 
-          className="md:hidden p-2"
+          className={`md:hidden p-2 z-50 ${isMobileMenuOpen ? 'fixed top-4 right-4' : 'relative'}`}
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
         >
           {isMobileMenuOpen ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              className="h-6 w-6 text-red-500"
+            >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="24" 
+              height="24" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              className="h-6 w-6"
+            >
               <line x1="3" y1="12" x2="21" y2="12"></line>
               <line x1="3" y1="6" x2="21" y2="6"></line>
               <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -265,28 +298,40 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
           <Link 
             to={getDashboardLink()} 
-            className={`text-lg font-medium px-4 py-2 ${isActive('') ? 'text-blue-600' : ''}`}
+            className={`text-lg font-medium px-4 py-2 rounded-lg ${
+              location.pathname === getDashboardLink() && location.hash === ''
+                ? 'bg-blue-50 text-blue-600' 
+                : 'hover:bg-gray-100'
+            }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Dashboard
           </Link>
           <Link 
             to={`${getDashboardLink()}#profile`} 
-            className={`text-lg font-medium px-4 py-2 ${isActive('profile') ? 'text-blue-600' : ''}`}
+            className={`text-lg font-medium px-4 py-2 rounded-lg ${
+              isActive('profile') 
+                ? 'bg-blue-50 text-blue-600' 
+                : 'hover:bg-gray-100'
+            }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Profile
           </Link>
           <Link 
             to={`${getDashboardLink()}#settings`} 
-            className={`text-lg font-medium px-4 py-2 ${isActive('settings') ? 'text-blue-600' : ''}`}
+            className={`text-lg font-medium px-4 py-2 rounded-lg ${
+              isActive('settings') 
+                ? 'bg-blue-50 text-blue-600' 
+                : 'hover:bg-gray-100'
+            }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Settings
           </Link>
 
           {user && (
-            <div className="flex items-center gap-3 px-4 py-2">
+            <div className="flex items-center gap-3 px-4 py-2 mt-8">
               <div className="flex items-center gap-2">
                 {getProviderIcon()}
                 <span className="text-sm capitalize">{userData?.type || 'email'}</span>
@@ -301,15 +346,15 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
               <>
                 {loadingUserData ? (
                   <>
-                    <Skeleton className="h-10 w-full rounded-md" />
-                    <Skeleton className="h-10 w-full rounded-md" />
-                    <Skeleton className="h-10 w-full rounded-md" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
                   </>
                 ) : (
                   <>
                     <Button 
                       variant="outline" 
-                      className="w-full"
+                      className="w-full py-4 text-base"
                       onClick={() => {
                         navigate(`${getDashboardLink()}#profile`);
                         setIsMobileMenuOpen(false);
@@ -319,7 +364,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="w-full"
+                      className="w-full py-4 text-base"
                       onClick={() => {
                         navigate(`${getDashboardLink()}#settings`);
                         setIsMobileMenuOpen(false);
@@ -329,7 +374,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="w-full"
+                      className="w-full py-4 text-base"
                       onClick={handleLogout}
                     >
                       Logout
@@ -340,12 +385,12 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
             ) : (
               <>
                 <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full py-4 text-base">
                     Sign In
                   </Button>
                 </Link>
                 <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full">
+                  <Button className="w-full py-4 text-base">
                     Get Started
                   </Button>
                 </Link>

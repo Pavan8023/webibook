@@ -18,19 +18,26 @@ interface DashboardNavbarProps {
   userType: 'host' | 'attendee';
 }
 
+interface UserData {
+  name?: string;
+  email?: string;
+  role?: string;
+  type?: string;
+  photoURL?: string;
+}
+
 export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, loadingAuth] = useAuthState(auth);
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUserData, setLoadingUserData] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
-      const offset = window.scrollY;
-      setIsScrolled(offset > 10);
+      setIsScrolled(window.scrollY > 10);
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -47,7 +54,6 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
       
       setLoadingUserData(true);
       try {
-        // Get user from unified users collection
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
         
@@ -55,19 +61,18 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           const data = userDoc.data();
           setUserData({
             name: data.name || user.displayName || user.email?.split('@')[0],
-            email: user.email,
+            email: user.email || undefined,
             role: data.role || 'attendee',
             type: data.type || 'email',
-            photoURL: data.photoURL || user.photoURL
+            photoURL: data.photoURL || user.photoURL || undefined
           });
         } else {
-          // Fallback to basic user info
           setUserData({
             name: user.displayName || user.email?.split('@')[0],
-            email: user.email,
+            email: user.email || undefined,
             role: 'attendee',
             type: 'unknown',
-            photoURL: user.photoURL
+            photoURL: user.photoURL || undefined
           });
         }
       } catch (error) {
@@ -90,11 +95,10 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
     return userType === 'host' ? '/host' : '/attendee';
   };
 
-  const isActive = (hash: string) => {
-    return location.hash === hash;
+  const isActive = (section: string) => {
+    return location.hash === `#${section}`;
   };
 
-  // Get provider icon based on user type
   const getProviderIcon = () => {
     switch (userData?.type) {
       case 'google':
@@ -149,13 +153,13 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           </Link>
           <Link 
             to={`${getDashboardLink()}#profile`} 
-            className={`px-4 py-2 font-medium button-transition ${isActive('#profile') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium button-transition ${isActive('profile') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
           >
             Profile
           </Link>
           <Link 
             to={`${getDashboardLink()}#settings`} 
-            className={`px-4 py-2 font-medium button-transition ${isActive('#settings') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
+            className={`px-4 py-2 font-medium button-transition ${isActive('settings') ? 'text-blue-600 border-b-2 border-blue-600' : 'text-foreground/80 hover:text-foreground'}`}
           >
             Settings
           </Link>
@@ -180,7 +184,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-10 w-10 rounded-full p-0">
                     <Avatar>
-                      <AvatarImage src={userData?.photoURL || undefined} />
+                      <AvatarImage src={userData?.photoURL} />
                       <AvatarFallback className="bg-webi-blue text-white">
                         {userData?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                       </AvatarFallback>
@@ -206,6 +210,9 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                   </div>
                   <DropdownMenuItem onClick={() => navigate(`${getDashboardLink()}#profile`)}>
                     Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`${getDashboardLink()}#settings`)}>
+                    Settings
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout}>
                     Logout
@@ -265,14 +272,14 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           </Link>
           <Link 
             to={`${getDashboardLink()}#profile`} 
-            className={`text-lg font-medium px-4 py-2 ${isActive('#profile') ? 'text-blue-600' : ''}`}
+            className={`text-lg font-medium px-4 py-2 ${isActive('profile') ? 'text-blue-600' : ''}`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Profile
           </Link>
           <Link 
             to={`${getDashboardLink()}#settings`} 
-            className={`text-lg font-medium px-4 py-2 ${isActive('#settings') ? 'text-blue-600' : ''}`}
+            className={`text-lg font-medium px-4 py-2 ${isActive('settings') ? 'text-blue-600' : ''}`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Settings
@@ -296,6 +303,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                   <>
                     <Skeleton className="h-10 w-full rounded-md" />
                     <Skeleton className="h-10 w-full rounded-md" />
+                    <Skeleton className="h-10 w-full rounded-md" />
                   </>
                 ) : (
                   <>
@@ -308,6 +316,16 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                       }}
                     >
                       Profile
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => {
+                        navigate(`${getDashboardLink()}#settings`);
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Settings
                     </Button>
                     <Button 
                       variant="outline" 

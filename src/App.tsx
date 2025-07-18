@@ -24,6 +24,7 @@ import Host from "./pages/Host";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "./lib/firebase";
 
+
 const queryClient = new QueryClient();
 
 // —————— Protected Route HOC ——————

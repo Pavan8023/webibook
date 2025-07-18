@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db, logout } from '@/lib/firebase';
@@ -51,12 +51,12 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
         setLoadingUserData(false);
         return;
       }
-      
+
       setLoadingUserData(true);
       try {
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
-        
+
         if (userDoc.exists()) {
           const data = userDoc.data();
           setUserData({
@@ -127,51 +127,47 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
   };
 
   return (
-    <header 
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-transparent'
-      }`}
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-transparent'
+        }`}
     >
       <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2 px-4 sm:px-6">
-        <Link 
-          to={getDashboardLink()} 
+        <Link
+          to={getDashboardLink()}
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 mr-2">
-            <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
-            <path fill="currentColor" d="M8 8h8v2H8zm0 4h8v2H8zm0 4h5v2H8z"/>
+            <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+            <path fill="currentColor" d="M8 8h8v2H8zm0 4h8v2H8zm0 4h5v2H8z" />
           </svg>
           Webibook
         </Link>
-        
+
         <nav className="hidden md:flex items-center space-x-1">
-          <Link 
-            to={getDashboardLink()} 
-            className={`px-4 py-2 font-medium transition-colors ${
-              location.pathname === getDashboardLink() && location.hash === '' 
-                ? 'text-blue-600 border-b-2 border-blue-600' 
+          <Link
+            to={getDashboardLink()}
+            className={`px-4 py-2 font-medium transition-colors ${location.pathname === getDashboardLink() && location.hash === ''
+                ? 'text-blue-600 border-b-2 border-blue-600'
                 : 'text-foreground/80 hover:text-foreground'
-            }`}
+              }`}
           >
             Dashboard
           </Link>
-          <Link 
-            to={`${getDashboardLink()}#profile`} 
-            className={`px-4 py-2 font-medium transition-colors ${
-              isActive('profile') 
-                ? 'text-blue-600 border-b-2 border-blue-600' 
+          <Link
+            to={`${getDashboardLink()}#profile`}
+            className={`px-4 py-2 font-medium transition-colors ${isActive('profile')
+                ? 'text-blue-600 border-b-2 border-blue-600'
                 : 'text-foreground/80 hover:text-foreground'
-            }`}
+              }`}
           >
             Profile
           </Link>
-          <Link 
-            to={`${getDashboardLink()}#settings`} 
-            className={`px-4 py-2 font-medium transition-colors ${
-              isActive('settings') 
-                ? 'text-blue-600 border-b-2 border-blue-600' 
+          <Link
+            to={`${getDashboardLink()}#settings`}
+            className={`px-4 py-2 font-medium transition-colors ${isActive('settings')
+                ? 'text-blue-600 border-b-2 border-blue-600'
                 : 'text-foreground/80 hover:text-foreground'
-            }`}
+              }`}
           >
             Settings
           </Link>
@@ -191,7 +187,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                   <span className="capitalize">{userData?.type || 'email'}</span>
                 </Badge>
               </div>
-              
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-10 w-10 rounded-full p-0">
@@ -247,38 +243,38 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           )}
         </div>
 
-        <button 
+        <button
           className={`md:hidden p-2 z-50 ${isMobileMenuOpen ? 'fixed top-4 right-4' : 'relative'}`}
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
         >
           {isMobileMenuOpen ? (
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               className="h-6 w-6 text-red-500"
             >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           ) : (
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="24" 
-              height="24" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               className="h-6 w-6"
             >
               <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -290,41 +286,37 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
       </div>
 
       {/* Mobile menu */}
-      <div 
-        className={`md:hidden fixed inset-0 bg-white z-40 transform transition-transform duration-300 ease-in-out ${
-          isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+      <div
+        className={`md:hidden fixed inset-0 bg-blue-500 bg-opacity-90 text-white z-40 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
-          <Link 
-            to={getDashboardLink()} 
-            className={`text-lg font-medium px-4 py-2 rounded-lg ${
-              location.pathname === getDashboardLink() && location.hash === ''
-                ? 'bg-blue-50 text-blue-600' 
+          <Link
+            to={getDashboardLink()}
+            className={`text-lg font-medium px-4 py-2 rounded-lg text-blue-900 ${location.pathname === getDashboardLink() && location.hash === ''
+                ? 'bg-blue-50 text-blue-600'
                 : 'hover:bg-gray-100'
-            }`}
+              }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Dashboard
           </Link>
-          <Link 
-            to={`${getDashboardLink()}#profile`} 
-            className={`text-lg font-medium px-4 py-2 rounded-lg ${
-              isActive('profile') 
-                ? 'bg-blue-50 text-blue-600' 
+          <Link
+            to={`${getDashboardLink()}#profile`}
+            className={`text-lg font-medium px-4 py-2 rounded-lg text-white-900 ${isActive('profile')
+                ? 'bg-blue-50 text-blue-600'
                 : 'hover:bg-gray-100'
-            }`}
+              }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Profile
           </Link>
-          <Link 
-            to={`${getDashboardLink()}#settings`} 
-            className={`text-lg font-medium px-4 py-2 rounded-lg ${
-              isActive('settings') 
-                ? 'bg-blue-50 text-blue-600' 
+          <Link
+            to={`${getDashboardLink()}#settings`}
+            className={`text-lg font-medium px-4 py-2 rounded-lg text-white-900 ${isActive('settings')
+                ? 'bg-blue-50 text-blue-600'
                 : 'hover:bg-gray-100'
-            }`}
+              }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Settings
@@ -332,12 +324,12 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
 
           {user && (
             <div className="flex items-center gap-3 px-4 py-2 mt-8">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center bg-white rounded-lg shadow-sm">
                 {getProviderIcon()}
                 <span className="text-sm capitalize">{userData?.type || 'email'}</span>
               </div>
               <span className="text-sm">•</span>
-              <span className="text-sm capitalize">{userData?.role || 'attendee'}</span>
+              <span className="text-base text-black font-semibold capitalize">{userData?.role || 'attendee'}</span>
             </div>
           )}
 
@@ -352,9 +344,9 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                   </>
                 ) : (
                   <>
-                    <Button 
-                      variant="outline" 
-                      className="w-full py-4 text-base"
+                    <Button
+                      variant="outline"
+                      className="w-full py-4 text-base text-blue-900"
                       onClick={() => {
                         navigate(`${getDashboardLink()}#profile`);
                         setIsMobileMenuOpen(false);
@@ -362,9 +354,9 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                     >
                       Profile
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full py-4 text-base"
+                    <Button
+                      variant="outline"
+                      className="w-full py-4 text-base text-blue-900"
                       onClick={() => {
                         navigate(`${getDashboardLink()}#settings`);
                         setIsMobileMenuOpen(false);
@@ -372,9 +364,9 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                     >
                       Settings
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full py-4 text-base"
+                    <Button
+                      variant="outline"
+                      className="w-full py-4 text-base text-blue-900"
                       onClick={handleLogout}
                     >
                       Logout
@@ -385,7 +377,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
             ) : (
               <>
                 <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full py-4 text-base">
+                  <Button variant="outline" className="w-full py-4 text-base text-blue-900">
                     Sign In
                   </Button>
                 </Link>

@@ -111,3 +111,14 @@ export const providerSignIn = async (
   
   return userCredential;
 };
+
+import { sendPasswordResetEmail } from 'firebase/auth';
+
+export const resetPassword = async (email: string, newPassword: string) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return { success: true, message: 'Password reset email sent successfully' };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+};

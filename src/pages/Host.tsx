@@ -1594,102 +1594,125 @@ const Host = () => {
               )}
 
               {/* Hosted Events List */}
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle>Your Hosted Events</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {hostedEvents.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground">You haven't hosted any events yet</p>
-                        <Button className="mt-4" onClick={() => setShowForm(true)}>
-                          Create Your First Event
-                        </Button>
-                      </div>
-                    ) : (
-                      hostedEvents.map(event => {
-                        const now = new Date();
-                        const eventDate = new Date(`${event.date}T${event.time}`);
-                        const durationInMinutes = parseInt(event.duration, 10);
-                        const endTime = new Date(eventDate.getTime() + durationInMinutes * 60000);
-                        
-                        // Calculate status
-                        let status = 'upcoming';
-                        if (now >= eventDate && now <= endTime) {
-                          status = 'live';
-                        } else if (now > endTime) {
-                          status = 'past';
-                        }
-                        
-                        return (
-                          <div key={event.id} className="border rounded-lg p-4 flex justify-between items-center">
-                            <div className="flex items-center space-x-4">
-                              {event.coverImageURL && (
-                                <img 
-                                  src={event.coverImageURL} 
-                                  alt={event.title} 
-                                  className="w-16 h-16 rounded-md object-cover"
-                                />
-                              )}
-                              <div>
-                                <h3 className="font-medium">{event.title}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  {event.date} at {event.time}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-6">
-                              <div className="text-center">
-                                <div className="font-medium">{event.attendees.length}</div>
-                                <div className="text-xs text-muted-foreground">Attendees</div>
-                              </div>
-                              <Badge variant={
-                                status === 'upcoming' ? 'secondary' : 
-                                status === 'live' ? 'default' : 'outline'
-                              }>
-                                {status}
-                              </Badge>
-                              <div className="flex space-x-2">
-                                {status === 'live' && (
-                                  <Button 
-                                    variant="default" 
-                                    size="sm"
-                                    onClick={() => startMeeting(event)}
-                                  >
-                                    <Video size={16} className="mr-1" /> Start
-                                  </Button>
-                                )}
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => openViewEvent(event)}
-                                >
-                                  <Eye size={16} className="mr-1" /> View
-                                </Button>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => openEditEvent(event)}
-                                >
-                                  <Pencil size={16} className="mr-1" /> Edit
-                                </Button>
-                                <Button 
-                                  variant="destructive" 
-                                  size="sm"
-                                  onClick={() => deleteEvent(event.id)}
-                                >
-                                  <Trash size={16} />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })
-                    )}
+<Card className="mb-8">
+  <CardHeader>
+    <CardTitle>Your Hosted Events</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      {hostedEvents.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">You haven't hosted any events yet</p>
+          <Button className="mt-4" onClick={() => setShowForm(true)}>
+            Create Your First Event
+          </Button>
+        </div>
+      ) : (
+        hostedEvents.map(event => {
+          const now = new Date();
+          const eventDate = new Date(`${event.date}T${event.time}`);
+          const durationInMinutes = parseInt(event.duration, 10);
+          const endTime = new Date(eventDate.getTime() + durationInMinutes * 60000);
+          
+          // Calculate status
+          let status = 'upcoming';
+          if (now >= eventDate && now <= endTime) {
+            status = 'live';
+          } else if (now > endTime) {
+            status = 'past';
+          }
+          
+          return (
+            <div 
+              key={event.id} 
+              className="border rounded-lg p-4 flex flex-col sm:flex-row justify-between gap-4 sm:gap-0"
+            >
+              {/* Event Info */}
+              <div className="flex flex-1 min-w-0">
+                <div className="flex items-center space-x-4 min-w-0">
+                  {event.coverImageURL ? (
+                    <div className="flex-shrink-0">
+                      <img 
+                        src={event.coverImageURL} 
+                        alt={event.title} 
+                        className="w-16 h-16 rounded-md object-cover"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="min-w-0">
+                    <h3 className="font-medium truncate">{event.title}</h3>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {event.date} at {event.time}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+              
+              {/* Stats and Actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                {/* Attendees and Status */}
+                <div className="flex items-center gap-4 sm:gap-6">
+                  <div className="text-center sm:text-left">
+                    <div className="font-medium">{event.attendees.length}</div>
+                    <div className="text-xs text-muted-foreground">Attendees</div>
+                  </div>
+                  <Badge variant={
+                    status === 'upcoming' ? 'secondary' : 
+                    status === 'live' ? 'default' : 'outline'
+                  }>
+                    {status}
+                  </Badge>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2">
+                  {status === 'live' && (
+                    <Button 
+                      variant="default" 
+                      size="sm"
+                      className="flex-1 sm:flex-initial"
+                      onClick={() => startMeeting(event)}
+                    >
+                      <Video size={16} className="mr-1 sm:mr-2" /> 
+                      <span className="hidden sm:inline">Start</span>
+                    </Button>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1 sm:flex-initial"
+                    onClick={() => openViewEvent(event)}
+                  >
+                    <Eye size={16} className="mr-1 sm:mr-2" /> 
+                    <span className="hidden sm:inline">View</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1 sm:flex-initial"
+                    onClick={() => openEditEvent(event)}
+                  >
+                    <Pencil size={16} className="mr-1 sm:mr-2" /> 
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    className="flex-1 sm:flex-initial"
+                    onClick={() => deleteEvent(event.id)}
+                  >
+                    <Trash size={16} className="sm:mr-2" /> 
+                    <span className="hidden sm:inline">Delete</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  </CardContent>
+</Card>
 
               {/* Analytics Section */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

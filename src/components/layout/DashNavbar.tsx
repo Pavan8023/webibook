@@ -287,10 +287,20 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
 
       {/* Mobile menu */}
       <div
-        className={`md:hidden fixed inset-0 bg-blue-500 bg-opacity-90 text-white z-40 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+        className={`md:hidden fixed inset-0 bg-white z-40 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
+          <Link
+                    to={getDashboardLink()}
+                    className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 mr-2">
+                      <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+                      <path fill="currentColor" d="M8 8h8v2H8zm0 4h8v2H8zm0 4h5v2H8z" />
+                    </svg>
+                    Webibook
+                  </Link>
           <Link
             to={getDashboardLink()}
             className={`text-lg font-medium px-4 py-2 rounded-lg text-blue-900 ${location.pathname === getDashboardLink() && location.hash === ''
@@ -313,7 +323,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           </Link>
           <Link
             to={`${getDashboardLink()}#settings`}
-            className={`text-lg font-medium px-4 py-2 rounded-lg text-white-900 ${isActive('settings')
+            className={`text-lg font-medium px-4 py-2 rounded-lg text-black ${isActive('settings')
                 ? 'bg-blue-50 text-blue-600'
                 : 'hover:bg-gray-100'
               }`}
@@ -324,7 +334,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
 
           {user && (
             <div className="flex items-center gap-3 px-4 py-2 mt-8">
-              <div className="flex items-center bg-white rounded-lg shadow-sm">
+              <div className="flex items-center bg-black text-white rounded-md shadow-sm">
                 {getProviderIcon()}
                 <span className="text-sm capitalize">{userData?.type || 'email'}</span>
               </div>
@@ -344,26 +354,6 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
                   </>
                 ) : (
                   <>
-                    <Button
-                      variant="outline"
-                      className="w-full py-4 text-base text-blue-900"
-                      onClick={() => {
-                        navigate(`${getDashboardLink()}#profile`);
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      Profile
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full py-4 text-base text-blue-900"
-                      onClick={() => {
-                        navigate(`${getDashboardLink()}#settings`);
-                        setIsMobileMenuOpen(false);
-                      }}
-                    >
-                      Settings
-                    </Button>
                     <Button
                       variant="outline"
                       className="w-full py-4 text-base text-blue-900"

@@ -26,11 +26,8 @@ export const Footer = () => {
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
                 <Linkedin className="h-5 w-5" />
               </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a href="https://www.instagram.com/webibook/" className="text-muted-foreground hover:text-foreground transition-colors">
                 <Instagram className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <Github className="h-5 w-5" />
               </a>
             </div>
           </div>
@@ -64,9 +61,9 @@ export const Footer = () => {
               <li><Link to="/privacy" className="hover:underline">Privacy Policy</Link></li>
               <li><Link to="/tnc" className="hover:underline">Terms & Conditions</Link></li>
               <li><Link to="/faq" className="text-muted-foreground hover:text-foreground transition-colors">FAQ</Link></li>
-              <li><a href="mailto:support@webibook.com" className="text-muted-foreground hover:text-foreground transition-colors flex items-center">
+              <li><a href="mailto:webibook.ai@gmail.com" className="text-muted-foreground hover:text-foreground transition-colors flex items-center">
                 <Mail className="h-4 w-4 mr-2" />
-                support@webibook.com
+                webibook.ai@gmail.com
               </a></li>
             </ul>
           </div>

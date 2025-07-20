@@ -13,7 +13,6 @@ import Dashboard from "./pages/Dashboard";
 import Discover from "./pages/Discover";
 import Categories from "./pages/Categories";
 import UserProfile from "./pages/UserProfile";
-import WebinarDetails from "./pages/WebinarDetails";
 import NotFound from "./pages/NotFound";
 import Tnc from "./pages/Tnc";
 import Privacy from "./pages/Privacy";
@@ -67,7 +66,6 @@ const App = () => (
           <Route path="/discover" element={<Discover />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/profile" element={<UserProfile />} />
-          <Route path="/webinar/:id" element={<WebinarDetails />} />
           <Route path="/tnc" element={<Tnc />} />
           <Route path="/privacy" element={<Privacy />} />
 

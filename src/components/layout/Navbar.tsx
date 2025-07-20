@@ -135,7 +135,7 @@ export const Navbar = () => {
           <img src={WebiBookLogo} className="h-16 w-16 z-50" alt="Webibook" />
           <span>
             <span className="text-purple-600">Webi</span>
-            <span className="text-red-500">book</span>
+            <span className="text-red-500">Book</span>
           </span>
         </Link>
 

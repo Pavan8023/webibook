@@ -131,7 +131,7 @@ export const Navbar = () => {
           to="/"
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
         >
-          <img src="./dist/images/Webibook.png" className='h-16 w-16 z-50' alt="" />
+          <img src="./public/images/Webibook.png" className='h-16 w-16 z-50' alt="" />
           <span>
             <span className="text-purple-600">Webi</span>
             <span className="text-red-500">book</span>

@@ -4,7 +4,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
+import {
   Form,
   FormControl,
   FormField,
@@ -18,16 +18,18 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from '@/components/ui/use-toast';
-import { 
-  emailLogin, 
+import {
+  emailLogin,
   providerSignIn,
   resetPassword
 } from '@/services/auth';
 import { RoleSelectionModal } from '@/components/ui/RoleSelectionModal';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, twitterProvider } from '@/lib/firebase';
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
-import { browserSessionPersistence, setPersistence } from 'firebase/auth';
+import { browserSessionPersistence, setPersistence, signInWithPopup } from 'firebase/auth';
+import { Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Updated form schema with role selection
 const formSchema = z.object({
@@ -51,7 +53,7 @@ const Login = () => {
   const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'google' | 'twitter'>('google');
   const [userRole, setUserRole] = useState<string | null>(null);
-  
+
   // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -62,13 +64,17 @@ const Login = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [passwordResetSuccess, setPasswordResetSuccess] = useState(false);
-  
+
   // Arithmetic CAPTCHA states
   const [num1, setNum1] = useState(0);
   const [num2, setNum2] = useState(0);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaError, setCaptchaError] = useState('');
-  
+
+  // Error notification states
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -78,11 +84,19 @@ const Login = () => {
     },
   });
 
+  // Display error notification
+  const showErrorNotification = (message: string) => {
+    setErrorMessage(message);
+    setShowError(true);
+    setTimeout(() => setShowError(false), 5000);
+  };
+
   // Set session persistence
   useEffect(() => {
     setPersistence(auth, browserSessionPersistence)
       .catch((error) => {
         console.error("Error setting session persistence:", error);
+        showErrorNotification("We encountered a technical issue. Please try again later.");
       });
   }, []);
 
@@ -90,18 +104,19 @@ const Login = () => {
   useEffect(() => {
     const fetchUserRole = async () => {
       if (!user) return;
-      
+
       setIsLoading(true);
       try {
         // Get user from unified users collection
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
-        
+
         if (userDoc.exists()) {
           setUserRole(userDoc.data().role);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching user role:', error);
+        showErrorNotification("Failed to load your account information. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -140,12 +155,12 @@ const Login = () => {
       // Set session persistence before login
       await setPersistence(auth, browserSessionPersistence);
       await emailLogin(values.email, values.password, values.role);
-      
+
       toast({
         title: "Logged in successfully!",
         description: "Welcome back to Webibook.",
       });
-      
+
       // Redirect based on role
       if (values.role === 'hoster') {
         navigate("/host");
@@ -153,11 +168,9 @@ const Login = () => {
         navigate("/attendee");
       }
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Invalid email or password",
-        variant: "destructive"
-      });
+      showErrorNotification(
+        error.message || "We couldn't sign you in. Please check your credentials and try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -169,12 +182,12 @@ const Login = () => {
       // Set session persistence before login
       await setPersistence(auth, browserSessionPersistence);
       await providerSignIn(selectedProvider, role);
-      
+
       toast({
         title: "Logged in successfully!",
         description: `Welcome back via ${selectedProvider}`,
       });
-      
+
       // Redirect based on role
       if (role === 'hoster') {
         navigate("/host");
@@ -182,14 +195,56 @@ const Login = () => {
         navigate("/attendee");
       }
     } catch (error: any) {
-      toast({
-        title: "Login failed",
-        description: error.message || "Authentication error",
-        variant: "destructive"
-      });
+      showErrorNotification(
+        error.message || "We couldn't sign you in. Please try again."
+      );
     } finally {
       setIsLoading(false);
       setProviderModalOpen(false);
+    }
+  };
+
+  // Handle direct Twitter login
+  const handleTwitterLogin = async () => {
+    setIsLoading(true);
+    try {
+      // Set session persistence before login
+      await setPersistence(auth, browserSessionPersistence);
+
+      // Sign in with Twitter directly
+      const result = await signInWithPopup(auth, twitterProvider);
+      const user = result.user;
+
+      // Get user role from Firestore
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        const role = userDoc.data().role;
+        setUserRole(role);
+
+        toast({
+          title: "Logged in successfully!",
+          description: `Welcome back via Twitter`,
+        });
+
+        // Redirect based on role
+        if (role === 'hoster') {
+          navigate("/host");
+        } else {
+          navigate("/attendee");
+        }
+      } else {
+        // If user doesn't exist in Firestore, show role selection
+        setSelectedProvider('twitter');
+        setProviderModalOpen(true);
+      }
+    } catch (error: any) {
+      showErrorNotification(
+        error.message || "We couldn't sign you in with Twitter. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -200,24 +255,25 @@ const Login = () => {
       setEmailError('Please enter your email address');
       return;
     }
-    
+
     try {
       // Check if user exists in Firestore
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('email', '==', forgotEmail));
       const querySnapshot = await getDocs(q);
-      
+
       if (querySnapshot.empty) {
         setEmailError('This email is not registered or your account has been deleted');
         return;
       }
-      
+
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
       setUserType(userData.type || 'email'); // Use 'type' field from Firestore
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error finding user:', error);
       setEmailError('Failed to find account. Please try again.');
+      showErrorNotification("We encountered a technical issue. Please try again later.");
     }
   };
 
@@ -225,12 +281,12 @@ const Login = () => {
   const verifyCaptcha = () => {
     const correctAnswer = num1 + num2;
     const userAnswer = parseInt(captchaAnswer, 10);
-    
+
     if (isNaN(userAnswer)) {
       setCaptchaError('Please enter a valid number');
       return;
     }
-    
+
     if (userAnswer === correctAnswer) {
       setCaptchaVerified(true);
       setCaptchaError('');
@@ -242,49 +298,50 @@ const Login = () => {
 
   const handlePasswordReset = async () => {
     setPasswordError('');
-    
+
     if (!newPassword || !confirmPassword) {
       setPasswordError('Please fill in both password fields');
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setPasswordError('Password should be at least 6 characters');
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       setPasswordError('Passwords do not match');
       return;
     }
-    
+
     try {
       // Find user by email
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('email', '==', forgotEmail));
       const querySnapshot = await getDocs(q);
-      
+
       if (querySnapshot.empty) {
         setPasswordError('User not found. Please try again.');
         return;
       }
-      
+
       const userDoc = querySnapshot.docs[0];
       const userId = userDoc.id;
-      
+
       // Reset password
       await resetPassword(forgotEmail, newPassword);
-      
+
       // Update user document
       await updateDoc(doc(db, 'users', userId), {
         password: newPassword
       });
-      
+
       setPasswordResetSuccess(true);
       setPasswordError('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error resetting password:', error);
       setPasswordError('Failed to reset password. Please try again.');
+      showErrorNotification("We couldn't reset your password. Please try again later.");
     }
   };
 
@@ -304,7 +361,9 @@ const Login = () => {
   if (loadingAuth || (user && !userRole)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-webi-blue"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-webi-blue">
+          <Loader2 className="h-8 w-8" />
+        </div>
         <p className="mt-4 text-lg">Loading your account...</p>
       </div>
     );
@@ -319,21 +378,52 @@ const Login = () => {
         onRoleSelect={handleProviderLogin}
         provider={selectedProvider}
       />
-      
+
+      {/* Error Notification */}
+      <AnimatePresence>
+        {showError && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md"
+          >
+            <div className="bg-white border border-red-300 rounded-lg shadow-lg p-4 flex items-start gap-3">
+              <div className="bg-red-100 p-2 rounded-full">
+                <div className="bg-webi-black w-8 h-8 rounded-full flex items-center justify-center">
+                  <img src="./dist/images/Webibook.png" className='h-12 w-20 z-50' alt="" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <p className="text-red-700 font-medium">Webibook encountered an issue</p>
+                <p className="text-gray-600 mt-1">{errorMessage}</p>
+              </div>
+              <button
+                onClick={() => setShowError(false)}
+                className="text-gray-500 hover:text-gray-700 mt-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Forgot Password Modal */}
       {forgotPasswordOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md p-6 animate-fade-in">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Reset Password</h2>
-              <button 
+              <button
                 onClick={closeForgotPassword}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             {!userType && (
               <div className="space-y-4">
                 <div>
@@ -346,8 +436,8 @@ const Login = () => {
                   />
                   {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={handleForgotPassword}
                   className="w-full"
                 >
@@ -355,7 +445,7 @@ const Login = () => {
                 </Button>
               </div>
             )}
-            
+
             {userType === 'google' && (
               <div className="p-4 bg-blue-50 rounded-lg flex items-center gap-4">
                 <div className="bg-blue-100 p-3 rounded-full">
@@ -375,7 +465,7 @@ const Login = () => {
                 </div>
               </div>
             )}
-            
+
             {userType === 'twitter' && (
               <div className="p-4 bg-blue-50 rounded-lg flex items-center gap-4">
                 <div className="bg-blue-100 p-3 rounded-full">
@@ -391,7 +481,7 @@ const Login = () => {
                 </div>
               </div>
             )}
-            
+
             {userType === 'email' && !captchaVerified && (
               <div className="space-y-4">
                 <div className="text-center">
@@ -399,12 +489,12 @@ const Login = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Solve this simple math problem to continue
                   </p>
-                  
+
                   <div className="flex flex-col items-center space-y-4">
                     <div className="text-2xl font-bold bg-gray-100 px-6 py-4 rounded-lg">
                       What is {num1} + {num2}?
                     </div>
-                    
+
                     <Input
                       type="number"
                       value={captchaAnswer}
@@ -412,17 +502,17 @@ const Login = () => {
                       placeholder="Enter answer"
                       className="text-center w-32"
                     />
-                    
+
                     {captchaError && <p className="text-red-500 text-sm">{captchaError}</p>}
-                    
-                    <Button 
+
+                    <Button
                       onClick={verifyCaptcha}
                       className="w-32"
                     >
                       Verify
                     </Button>
-                    
-                    <button 
+
+                    <button
                       onClick={generateCaptcha}
                       className="text-sm text-webi-blue hover:underline"
                     >
@@ -432,7 +522,7 @@ const Login = () => {
                 </div>
               </div>
             )}
-            
+
             {userType === 'email' && captchaVerified && !passwordResetSuccess && (
               <div className="space-y-4">
                 <div className="text-center">
@@ -441,7 +531,7 @@ const Login = () => {
                     Enter a new password for your account
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium mb-1">New Password</label>
                   <Input
@@ -451,7 +541,7 @@ const Login = () => {
                     placeholder="Enter your new password"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium mb-1">Confirm New Password</label>
                   <Input
@@ -461,10 +551,10 @@ const Login = () => {
                     placeholder="Confirm your new password"
                   />
                 </div>
-                
+
                 {passwordError && <p className="text-red-500 text-sm">{passwordError}</p>}
-                
-                <Button 
+
+                <Button
                   onClick={handlePasswordReset}
                   className="w-full"
                 >
@@ -472,7 +562,7 @@ const Login = () => {
                 </Button>
               </div>
             )}
-            
+
             {passwordResetSuccess && (
               <div className="text-center py-6">
                 <div className="bg-green-100 text-green-600 p-3 rounded-full inline-block mb-4">
@@ -484,7 +574,7 @@ const Login = () => {
                 <p className="text-muted-foreground">
                   Your password has been updated successfully.
                 </p>
-                <Button 
+                <Button
                   onClick={closeForgotPassword}
                   className="mt-4 w-full"
                 >
@@ -495,22 +585,26 @@ const Login = () => {
           </div>
         </div>
       )}
-      
+
       <main className="flex-grow pt-16 md:pt-20">
         <div className="container-tight py-16 md:py-24">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8 animate-fade-down">
-              <Link to="/" className="inline-flex items-center mb-8 text-2xl font-display font-bold text-webi-blue">
-                <Calendar className="mr-2 h-6 w-6" />
-                Webibook
+              <Link to="/" className="inline-flex items-center mb-8 text-2xl font-display font-bold">
+                <img src="./dist/images/Webibook.png" className="h-16 w-20 mr-2" alt="Webibook" />
+                <span>
+                  <span className="text-purple-600">Webi</span>
+                  <span className="text-red-500">book</span>
+                </span>
               </Link>
-              
+
+
               <h1 className="text-3xl font-bold mb-3">Welcome back</h1>
               <p className="text-muted-foreground">
                 Sign in to continue your webinar journey
               </p>
             </div>
-            
+
             <div className="animate-fade-up">
               <div className="bg-white p-8 rounded-xl border border-border shadow-sm">
                 <Form {...form}>
@@ -536,7 +630,7 @@ const Login = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="password"
@@ -544,7 +638,7 @@ const Login = () => {
                         <FormItem className="space-y-2">
                           <div className="flex justify-between">
                             <FormLabel>Password</FormLabel>
-                            <button 
+                            <button
                               type="button"
                               onClick={() => setForgotPasswordOpen(true)}
                               className="text-sm text-webi-blue hover:underline"
@@ -568,7 +662,7 @@ const Login = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="role"
@@ -595,18 +689,27 @@ const Login = () => {
                         </FormItem>
                       )}
                     />
-                    
-                    <Button 
-                      type="submit" 
+
+                    <Button
+                      type="submit"
                       className="w-full group"
                       disabled={isLoading}
                     >
-                      {isLoading ? "Signing in..." : "Sign In"}
-                      {!isLoading && <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />}
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Signing in...
+                        </>
+                      ) : (
+                        <>
+                          Sign In
+                          <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        </>
+                      )}
                     </Button>
                   </form>
                 </Form>
-                
+
                 <div className="mt-6">
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
@@ -618,10 +721,10 @@ const Login = () => {
                       </span>
                     </div>
                   </div>
-                  
+
                   <div className="mt-6 grid grid-cols-2 gap-3">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="h-11"
                       onClick={() => {
                         setSelectedProvider('google');
@@ -638,14 +741,11 @@ const Login = () => {
                       </svg>
                       Google
                     </Button>
-                    
-                    <Button 
-                      variant="outline" 
+
+                    <Button
+                      variant="outline"
                       className="h-11"
-                      onClick={() => {
-                        setSelectedProvider('twitter');
-                        setProviderModalOpen(true);
-                      }}
+                      onClick={handleTwitterLogin}
                       disabled={isLoading}
                     >
                       <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
@@ -656,7 +756,7 @@ const Login = () => {
                   </div>
                 </div>
               </div>
-              
+
               <p className="text-center mt-6 text-sm text-muted-foreground">
                 Don't have an account?{' '}
                 <Link to="/signup" className="text-webi-blue font-medium hover:underline">
@@ -667,7 +767,7 @@ const Login = () => {
           </div>
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

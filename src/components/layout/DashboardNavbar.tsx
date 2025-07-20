@@ -136,11 +136,11 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           to={getDashboardLink()}
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 mr-2">
-            <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
-            <path fill="currentColor" d="M8 8h8v2H8zm0 4h8v2H8zm0 4h5v2H8z" />
-          </svg>
-          Webibook
+          <img src="./dist/images/Webibook.png" className='h-16 w-16 z-50' alt="" />
+          <span>
+            <span className="text-purple-600">Webi</span>
+            <span className="text-red-500">book</span>
+          </span>
         </Link>
 
         <nav className="hidden md:flex items-center space-x-1">

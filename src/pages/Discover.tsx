@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ArrowRight, Star, Flame, Calendar, Clock, User } from 'lucide-react';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+import { Search, X, Calendar, Clock, User } from 'lucide-react';
+import { collection, query, orderBy, limit, getDocs, onSnapshot } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
 
 interface Webinar {
   id: string;
@@ -16,22 +18,37 @@ interface Webinar {
   date: string;
   time: string;
   duration: string;
+  hostId: string;
   hostName: string;
-  hostProfileImage?: string;
+  hostProfileImage: string;
   category: string;
-  isFeatured: boolean;
-  isTrending: boolean;
-  attendeesCount: number;
+  createdAt: Date;
+  dailyRoomUrl: string;
+  status: 'upcoming' | 'live' | 'completed';
 }
 
 const Discover = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [featuredWebinars, setFeaturedWebinars] = useState<Webinar[]>([]);
-  const [trendingWebinars, setTrendingWebinars] = useState<Webinar[]>([]);
-  const [categories, setCategories] = useState<{name: string, count: number}[]>([]);
+  const [webinars, setWebinars] = useState<Webinar[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [filteredWebinars, setFilteredWebinars] = useState<Webinar[]>([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showWaitingModal, setShowWaitingModal] = useState(false);
+  const [selectedWebinar, setSelectedWebinar] = useState<Webinar | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [hostImages, setHostImages] = useState<Record<string, string>>({});
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const navigate = useNavigate();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update current time every minute
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   // Format date to readable format
   const formatDate = (dateString: string) => {
@@ -43,89 +60,113 @@ const Discover = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Fetch all webinars in real-time
+  // Format time to AM/PM
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const formattedHour = hour % 12 || 12;
+    return `${formattedHour}:${minutes} ${period}`;
+  };
+
+  // Check if event has started
+  const hasEventStarted = (webinar: Webinar) => {
+    const eventDate = new Date(`${webinar.date}T${webinar.time}`);
+    return currentTime >= eventDate;
+  };
+
+  // Fetch host profile images
   useEffect(() => {
-    setLoading(true);
-    const webinarsRef = collection(db, 'events');
-    
-    const unsubscribe = onSnapshot(webinarsRef, (snapshot) => {
-      const allWebinars: Webinar[] = [];
-      const categoriesMap: Record<string, number> = {};
+    const fetchHostImages = async () => {
+      const usersRef = collection(db, 'users');
+      const usersSnapshot = await getDocs(usersRef);
       
-      snapshot.docs.forEach(doc => {
+      const images: Record<string, string> = {};
+      usersSnapshot.forEach(doc => {
         const data = doc.data();
-        const webinar = {
-          id: doc.id,
-          title: data.title,
-          description: data.description,
-          coverImageURL: data.coverImageURL,
-          date: data.date,
-          time: data.time,
-          duration: data.duration,
-          hostName: data.hostName,
-          hostProfileImage: data.hostProfileImage,
-          category: data.category,
-          isFeatured: data.isFeatured || false,
-          isTrending: data.isTrending || false,
-          attendeesCount: data.attendeesCount || 0
-        };
-        
-        allWebinars.push(webinar);
-        
-        // Count categories
-        if (categoriesMap[data.category]) {
-          categoriesMap[data.category]++;
-        } else {
-          categoriesMap[data.category] = 1;
+        if (data.photoURL) {
+          images[doc.id] = data.photoURL;
         }
       });
       
-      // Set featured webinars (first 3 featured)
-      setFeaturedWebinars(allWebinars
-        .filter(w => w.isFeatured)
-        .slice(0, 3));
+      setHostImages(images);
+    };
+
+    fetchHostImages();
+  }, []);
+
+  // Fetch latest webinars in real-time
+  useEffect(() => {
+    setLoading(true);
+    const webinarsRef = collection(db, 'events');
+    const q = query(webinarsRef, orderBy('createdAt', 'desc'), limit(8));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const latestWebinars: Webinar[] = [];
       
-      // Set trending webinars (first 6 trending by attendees)
-      setTrendingWebinars(allWebinars
-        .filter(w => w.isTrending)
-        .sort((a, b) => b.attendeesCount - a.attendeesCount)
-        .slice(0, 6));
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const eventDate = new Date(`${data.date}T${data.time}`);
+        
+        // Determine status based on current time
+        let status: 'upcoming' | 'live' | 'completed' = 'upcoming';
+        if (currentTime >= eventDate) {
+          const endTime = new Date(eventDate);
+          endTime.setMinutes(endTime.getMinutes() + parseInt(data.duration || '60'));
+          status = currentTime <= endTime ? 'live' : 'completed';
+        }
+        
+        latestWebinars.push({
+          id: doc.id,
+          title: data.title,
+          description: data.description,
+          coverImageURL: data.coverImageURL || data['cover.ImageURL'] || '',
+          date: data.date,
+          time: data.time,
+          duration: data.duration,
+          hostId: data.hostId,
+          hostName: data.hostName,
+          hostProfileImage: hostImages[data.hostId] || '',
+          category: data.category,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          dailyRoomUrl: data.dailyRoomUrl,
+          status
+        });
+      });
       
-      // Set categories with counts
-      const categoriesData = Object.entries(categoriesMap).map(([name, count]) => ({
-        name,
-        count
-      }));
-      setCategories([{ name: 'All', count: allWebinars.length }, ...categoriesData]);
-      
-      // Set initial filtered webinars (all)
-      setFilteredWebinars(allWebinars);
+      setWebinars(latestWebinars);
       setLoading(false);
     });
 
     return () => unsubscribe();
+  }, [hostImages, currentTime]);
+
+  // Track auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return unsubscribe;
   }, []);
 
-  // Filter webinars based on search and category
-  useEffect(() => {
-    let result = [...filteredWebinars];
-    
-    if (activeCategory !== 'All') {
-      result = result.filter(webinar => webinar.category === activeCategory);
+  const handleBookClick = (webinar: Webinar) => {
+    setSelectedWebinar(webinar);
+    setShowWaitingModal(true);
+  };
+
+  const handleJoinClick = (webinar: Webinar) => {
+    if (!user) {
+      setShowLoginModal(true);
+    } else {
+      // For logged-in users, navigate to the webinar room
+      window.open(webinar.dailyRoomUrl, '_blank');
     }
-    
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(webinar => 
-        webinar.title.toLowerCase().includes(query) ||
-        webinar.description.toLowerCase().includes(query) ||
-        webinar.hostName.toLowerCase().includes(query) ||
-        webinar.category.toLowerCase().includes(query)
-      );
-    }
-    
-    setFilteredWebinars(result);
-  }, [searchQuery, activeCategory]);
+  };
+
+  const handleLoginRedirect = () => {
+    setShowLoginModal(false);
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
@@ -142,231 +183,17 @@ const Discover = () => {
               className="text-center mb-12"
             >
               <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-                Discover Amazing Webinars
+                Discover Latest Webinars
               </h1>
               <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-                Explore thousands of live and upcoming webinars across all topics. 
-                Learn from industry experts and grow your skills.
+                Explore the newest and most exciting webinars happening now. 
+                Join live sessions or register for upcoming events.
               </p>
-            </motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="relative max-w-2xl mx-auto"
-            >
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search webinars by topic, host, or keyword..."
-                className="pl-12 py-6 text-base rounded-xl shadow-lg"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <Button className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-500 hover:bg-blue-400">
-                Search
-              </Button>
             </motion.div>
           </div>
         </div>
         
-        {/* Featured Webinars */}
-        <section className="py-16 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="flex items-center justify-between mb-10">
-              <motion.h2 
-                className="text-3xl font-bold text-gray-900 flex items-center"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <Star className="text-yellow-500 mr-3" size={28} />
-                Featured Webinars
-              </motion.h2>
-              <Button variant="link" className="text-blue-600 hover:text-blue-800 text-lg">
-                View All
-                <ArrowRight className="ml-2" size={18} />
-              </Button>
-            </div>
-            
-            {loading ? (
-              <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : featuredWebinars.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {featuredWebinars.map((webinar, index) => (
-                  <motion.div
-                    key={webinar.id}
-                    className="bg-white rounded-2xl overflow-hidden shadow-xl"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ y: -10 }}
-                  >
-                    <div className="relative h-48 overflow-hidden">
-                      {webinar.coverImageURL ? (
-                        <img 
-                          src={webinar.coverImageURL} 
-                          alt={webinar.title}
-                          className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                        />
-                      ) : (
-                        <div className="bg-gradient-to-r from-blue-400 to-indigo-500 w-full h-full flex items-center justify-center">
-                          <span className="text-white text-xl font-bold">{webinar.title}</span>
-                        </div>
-                      )}
-                      <div className="absolute top-4 right-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                        Featured
-                      </div>
-                    </div>
-                    
-                    <div className="p-6">
-                      <div className="flex items-center mb-4">
-                        <Calendar className="text-gray-500 mr-2" size={16} />
-                        <span className="text-gray-600">{formatDate(webinar.date)}</span>
-                        <Clock className="text-gray-500 ml-4 mr-2" size={16} />
-                        <span className="text-gray-600">{webinar.time}</span>
-                      </div>
-                      
-                      <h3 className="text-xl font-bold text-gray-900 mb-3">{webinar.title}</h3>
-                      <p className="text-gray-600 mb-6 line-clamp-2">
-                        {webinar.description}
-                      </p>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          {webinar.hostProfileImage ? (
-                            <img 
-                              src={webinar.hostProfileImage} 
-                              alt={webinar.hostName}
-                              className="w-10 h-10 rounded-full mr-3"
-                            />
-                          ) : (
-                            <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3" />
-                          )}
-                          <div>
-                            <p className="font-medium text-gray-900">{webinar.hostName}</p>
-                            <p className="text-sm text-gray-500">Host</p>
-                          </div>
-                        </div>
-                        
-                        <Button className="bg-blue-600 hover:bg-blue-700">
-                          Join Now
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-gray-100 rounded-2xl p-12 text-center">
-                <h3 className="text-2xl font-medium mb-4 text-gray-800">No Featured Webinars</h3>
-                <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-                  Check back soon for featured webinars from industry experts.
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-        
-        {/* Trending Webinars */}
-        <section className="py-16 px-4 bg-gray-50">
-          <div className="container mx-auto max-w-6xl">
-            <div className="flex items-center justify-between mb-10">
-              <motion.h2 
-                className="text-3xl font-bold text-gray-900 flex items-center"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <Flame className="text-orange-500 mr-3" size={28} />
-                Trending Now
-              </motion.h2>
-              <Button variant="link" className="text-blue-600 hover:text-blue-800 text-lg">
-                View All
-                <ArrowRight className="ml-2" size={18} />
-              </Button>
-            </div>
-            
-            {loading ? (
-              <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : trendingWebinars.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {trendingWebinars.map((webinar, index) => (
-                  <motion.div
-                    key={webinar.id}
-                    className="bg-white rounded-2xl shadow-lg overflow-hidden"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.03 }}
-                  >
-                    <div className="p-6">
-                      <div className="flex items-center mb-4">
-                        <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium mr-3">
-                          Trending
-                        </div>
-                        <div className="flex items-center text-gray-500">
-                          <User size={16} className="mr-1" />
-                          <span>{webinar.attendeesCount} attending</span>
-                        </div>
-                      </div>
-                      
-                      <h3 className="text-xl font-bold text-gray-900 mb-3">{webinar.title}</h3>
-                      <p className="text-gray-600 mb-6 line-clamp-3">
-                        {webinar.description}
-                      </p>
-                      
-                      <div className="flex items-center mb-6">
-                        {webinar.hostProfileImage ? (
-                          <img 
-                            src={webinar.hostProfileImage} 
-                            alt={webinar.hostName}
-                            className="w-10 h-10 rounded-full mr-3"
-                          />
-                        ) : (
-                          <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3" />
-                        )}
-                        <div>
-                          <p className="font-medium text-gray-900">{webinar.hostName}</p>
-                          <p className="text-sm text-gray-500">Host</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="flex items-center text-gray-600 mb-1">
-                            <Calendar size={16} className="mr-2" />
-                            <span>{formatDate(webinar.date)}</span>
-                          </div>
-                          <div className="flex items-center text-gray-600">
-                            <Clock size={16} className="mr-2" />
-                            <span>{webinar.time} ({webinar.duration})</span>
-                          </div>
-                        </div>
-                        
-                        <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
-                          Details
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl p-12 text-center shadow-lg">
-                <h3 className="text-2xl font-medium mb-4 text-gray-800">Nothing Trending Yet</h3>
-                <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-                  Be the first to join upcoming webinars and make them trend!
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-        
-        {/* Browse Categories */}
+        {/* Latest Webinars */}
         <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <motion.h2 
@@ -374,100 +201,184 @@ const Discover = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              Browse by Category
+              Latest Webinars
             </motion.h2>
             
             {loading ? (
               <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
               </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap justify-center gap-4 mb-12">
-                  {categories.map((category, index) => (
-                    <motion.button
-                      key={category.name}
-                      className={`px-6 py-3 rounded-full font-medium transition-all ${
-                        activeCategory === category.name 
-                          ? 'bg-blue-600 text-white shadow-lg' 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                      onClick={() => setActiveCategory(category.name)}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+            ) : webinars.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {webinars.map((webinar, index) => (
+                  <motion.div
+                    key={webinar.id}
+                    className="h-[400px]"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <div 
+                      className="flip-card h-full w-full"
                     >
-                      {category.name} 
-                      <span className="ml-2 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
-                        {category.count}
-                      </span>
-                    </motion.button>
-                  ))}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {filteredWebinars.length > 0 ? (
-                    filteredWebinars.map((webinar, index) => (
                       <motion.div
-                        key={webinar.id}
-                        className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
+                        className="flip-card-inner w-full h-full"
+                        whileHover={{ rotateY: 180 }}
+                        transition={{ duration: 0.6 }}
+                        style={{ transformStyle: 'preserve-3d' }}
                       >
-                        <div className="flex items-center mb-4">
-                          <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mr-2">
-                            {webinar.category}
-                          </div>
-                          <div className="text-gray-500 text-sm">
-                            {webinar.date}
+                        {/* Front of Card */}
+                        <div 
+                          className="flip-card-front w-full h-full absolute" 
+                          style={{ backfaceVisibility: 'hidden' }}
+                        >
+                          <div className="h-full flex flex-col">
+                            <div className="relative h-48 overflow-hidden rounded-t-xl">
+                              {webinar.coverImageURL ? (
+                                <img 
+                                  src={webinar.coverImageURL} 
+                                  alt={webinar.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="bg-gradient-to-r from-blue-400 to-indigo-500 w-full h-full flex items-center justify-center">
+                                  <span className="text-white text-xl font-bold">{webinar.title}</span>
+                                </div>
+                              )}
+                              <div className="absolute bottom-3 left-3 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                                {webinar.category.charAt(0).toUpperCase() + webinar.category.slice(1)}
+                              </div>
+                              <div className={`absolute top-3 right-3 px-2 py-1 rounded-full text-xs font-bold ${
+                                webinar.status === 'live' 
+                                  ? 'bg-green-500 text-white' 
+                                  : webinar.status === 'upcoming'
+                                    ? 'bg-yellow-500 text-black'
+                                    : 'bg-gray-500 text-white'
+                              }`}>
+                                {webinar.status}
+                              </div>
+                            </div>
+                            
+                            <div className="p-5 flex-grow bg-white">
+                              <h3 className="font-bold text-gray-900 mb-3 line-clamp-2">{webinar.title}</h3>
+                              
+                              <div className="flex items-center mb-4">
+                                <Calendar className="text-gray-500 mr-2" size={16} />
+                                <span className="text-gray-600">{formatDate(webinar.date)}</span>
+                              </div>
+                              
+                              <div className="flex items-center mb-6">
+                                <Clock className="text-gray-500 mr-2" size={16} />
+                                <span className="text-gray-600">{formatTime(webinar.time)}</span>
+                              </div>
+                              
+                              <div className="flex items-center">
+                                {webinar.hostProfileImage ? (
+                                  <img 
+                                    src={webinar.hostProfileImage} 
+                                    alt={webinar.hostName}
+                                    className="w-10 h-10 rounded-full mr-3"
+                                  />
+                                ) : (
+                                  <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3" />
+                                )}
+                                <div>
+                                  <p className="font-medium text-gray-900">{webinar.hostName}</p>
+                                  <p className="text-sm text-gray-500">Host</p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         
-                        <h3 className="font-bold text-gray-900 mb-3 line-clamp-2">{webinar.title}</h3>
-                        
-                        <div className="flex items-center mb-4">
-                          {webinar.hostProfileImage ? (
-                            <img 
-                              src={webinar.hostProfileImage} 
-                              alt={webinar.hostName}
-                              className="w-8 h-8 rounded-full mr-2"
-                            />
-                          ) : (
-                            <div className="bg-gray-200 border-2 border-dashed rounded-full w-8 h-8 mr-2" />
-                          )}
-                          <span className="text-sm text-gray-600">{webinar.hostName}</span>
-                        </div>
-                        
-                        <div className="flex items-center text-gray-500 text-sm">
-                          <Clock size={14} className="mr-1" />
-                          <span className="mr-3">{webinar.time}</span>
-                          <User size={14} className="mr-1" />
-                          <span>{webinar.attendeesCount} attending</span>
+                        {/* Back of Card */}
+                        <div 
+                          className="flip-card-back w-full h-full absolute" 
+                          style={{ 
+                            backfaceVisibility: 'hidden',
+                            transform: 'rotateY(180deg)'
+                          }}
+                        >
+                          <div className="h-full bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl flex flex-col">
+                            <h3 className="font-bold text-gray-900 mb-3">{webinar.title}</h3>
+                            
+                            <p className="text-gray-600 mb-4 flex-grow line-clamp-4">
+                              {webinar.description}
+                            </p>
+                            
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                {webinar.hostProfileImage ? (
+                                  <img 
+                                    src={webinar.hostProfileImage} 
+                                    alt={webinar.hostName}
+                                    className="w-10 h-10 rounded-full mr-3"
+                                  />
+                                ) : (
+                                  <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3" />
+                                )}
+                                <div>
+                                  <p className="font-medium text-gray-900">{webinar.hostName}</p>
+                                  <p className="text-sm text-gray-500">Host</p>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+                                {webinar.category}
+                              </div>
+                            </div>
+                            
+                            <div className="mt-4 flex justify-between items-center">
+                              <div>
+                                <div className="flex items-center text-gray-600 mb-1">
+                                  <Calendar size={16} className="mr-2" />
+                                  <span>{formatDate(webinar.date)}</span>
+                                </div>
+                                <div className="flex items-center text-gray-600">
+                                  <Clock size={16} className="mr-2" />
+                                  <span>{formatTime(webinar.time)}</span>
+                                </div>
+                              </div>
+                              
+                              {hasEventStarted(webinar) ? (
+                                <Button 
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleJoinClick(webinar);
+                                  }}
+                                >
+                                  Join Now
+                                </Button>
+                              ) : (
+                                <Button 
+                                  size="sm"
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBookClick(webinar);
+                                  }}
+                                >
+                                  Book Now
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </motion.div>
-                    ))
-                  ) : (
-                    <div className="col-span-full bg-gray-50 rounded-xl p-10 text-center">
-                      <h3 className="text-xl font-medium mb-3 text-gray-800">No Webinars Found</h3>
-                      <p className="text-gray-600 mb-6">
-                        We couldn't find any webinars matching your criteria.
-                      </p>
-                      <Button 
-                        onClick={() => {
-                          setSearchQuery('');
-                          setActiveCategory('All');
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        Reset Filters
-                      </Button>
                     </div>
-                  )}
-                </div>
-              </>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gray-100 rounded-2xl p-12 text-center">
+                <h3 className="text-2xl font-medium mb-4 text-gray-800">No Webinars Available</h3>
+                <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+                  Check back soon for the latest webinars from industry experts.
+                </p>
+              </div>
             )}
           </div>
         </section>
@@ -495,7 +406,7 @@ const Discover = () => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
             >
-              <Button onClick={() => {window.location.href = '/login'}} className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg font-bold rounded-xl shadow-lg">
+              <Button className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg font-bold rounded-xl shadow-lg">
                 Start Hosting Today
               </Button>
             </motion.div>
@@ -504,6 +415,125 @@ const Discover = () => {
       </main>
       
       <Footer />
+
+      {/* Login Required Modal */}
+      <AnimatePresence>
+        {showLoginModal && (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div 
+              className="bg-white rounded-2xl max-w-md w-full p-8"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25 }}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-2xl text-gray-900">Login Required</h3>
+                <button 
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={handleLoginRedirect}
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <motion.div 
+                className="mb-8"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <p className="text-gray-600 text-lg mb-4">
+                  Please login to access this webinar content.
+                </p>
+                <p className="text-gray-600">
+                  You need to be logged in to view webinar details, register for events, and access exclusive content.
+                </p>
+              </motion.div>
+              
+              <div className="flex justify-end">
+                <motion.button
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl text-base font-medium hover:bg-blue-700 transition-colors"
+                  onClick={handleLoginRedirect}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Login Now
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Waiting Modal */}
+      <AnimatePresence>
+        {showWaitingModal && selectedWebinar && (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div 
+              className="bg-white rounded-2xl max-w-md w-full p-8"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25 }}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-2xl text-gray-900">Event Not Started</h3>
+                <button 
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={() => setShowWaitingModal(false)}
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <motion.div 
+                className="mb-8"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <p className="text-gray-600 text-lg mb-4">
+                  Please wait until the event time to join.
+                </p>
+                <div className="bg-blue-50 rounded-xl p-4 mb-4">
+                  <p className="text-gray-800 font-medium">{selectedWebinar.title}</p>
+                  <div className="flex items-center mt-2">
+                    <Calendar className="text-gray-600 mr-2" size={16} />
+                    <span className="text-gray-600">{formatDate(selectedWebinar.date)}</span>
+                    <Clock className="text-gray-600 ml-4 mr-2" size={16} />
+                    <span className="text-gray-600">{formatTime(selectedWebinar.time)}</span>
+                  </div>
+                </div>
+                <p className="text-gray-600">
+                  The webinar will start at the scheduled time. You'll be able to join when it begins.
+                </p>
+              </motion.div>
+              
+              <div className="flex justify-end">
+                <motion.button
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl text-base font-medium hover:bg-blue-700 transition-colors"
+                  onClick={() => setShowWaitingModal(false)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  OK
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

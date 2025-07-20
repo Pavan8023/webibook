@@ -167,15 +167,6 @@ export const Navbar = () => {
           >
             Categories
           </Link>
-          <Link
-            to="/host-webinar"
-            className={`px-4 py-2 font-medium transition-colors ${location.pathname === '/host-webinar'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
-              }`}
-          >
-            Host a Webinar
-          </Link>
         </nav>
 
         <div className="hidden md:flex items-center space-x-4">
@@ -325,16 +316,6 @@ export const Navbar = () => {
             onClick={() => setIsMobileMenuOpen(false)}
           >
             Categories
-          </Link>
-          <Link
-            to="/host-webinar"
-            className={`text-lg font-medium px-4 py-2 rounded-lg ${location.pathname === '/host-webinar'
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
-              }`}
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            Host a Webinar
           </Link>
 
           <div className="flex flex-col space-y-4 mt-8">

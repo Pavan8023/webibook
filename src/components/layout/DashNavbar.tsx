@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import WebiBookLogo from '/images/WebiBook.png';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -136,7 +137,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           to={getDashboardLink()}
           className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
         >
-          <img src="./public/images/Webibook.png" className='h-16 w-16 z-50' alt="" />
+          <img src={WebiBookLogo} className="h-16 w-16 z-50" alt="Webibook" />
           <span>
             <span className="text-purple-600">Webi</span>
             <span className="text-red-500">book</span>

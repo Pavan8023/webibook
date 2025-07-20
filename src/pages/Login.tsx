@@ -4,6 +4,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import WebiBookLogo from '/images/WebiBook.png';
 import {
   Form,
   FormControl,
@@ -591,7 +592,7 @@ const Login = () => {
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8 animate-fade-down">
               <Link to="/" className="inline-flex items-center mb-8 text-2xl font-display font-bold">
-                <img src="./dist/images/Webibook.png" className="h-16 w-20 mr-2" alt="Webibook" />
+                <img src={WebiBookLogo} className="h-16 w-16 z-50" alt="Webibook" />
                 <span>
                   <span className="text-purple-600">Webi</span>
                   <span className="text-red-500">book</span>

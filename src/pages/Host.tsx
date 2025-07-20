@@ -1346,7 +1346,10 @@ const Host = () => {
                               <SelectItem value="business">Business</SelectItem>
                               <SelectItem value="marketing">Marketing</SelectItem>
                               <SelectItem value="design">Design</SelectItem>
-                              <SelectItem value="health">Health & Wellness</SelectItem>
+                              <SelectItem value="health">Health</SelectItem>
+                              <SelectItem value="finance">Finance</SelectItem>
+                              <SelectItem value="development">Development</SelectItem>
+                              <SelectItem value="education">Education</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

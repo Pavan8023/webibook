@@ -14,7 +14,6 @@ import Discover from "./pages/Discover";
 import Categories from "./pages/Categories";
 import UserProfile from "./pages/UserProfile";
 import WebinarDetails from "./pages/WebinarDetails";
-import HostWebinar from "./pages/HostWebinar";
 import NotFound from "./pages/NotFound";
 import Tnc from "./pages/Tnc";
 import Privacy from "./pages/Privacy";
@@ -69,7 +68,6 @@ const App = () => (
           <Route path="/categories" element={<Categories />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/webinar/:id" element={<WebinarDetails />} />
-          <Route path="/host-webinar" element={<HostWebinar />} />
           <Route path="/tnc" element={<Tnc />} />
           <Route path="/privacy" element={<Privacy />} />
 

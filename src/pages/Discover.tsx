@@ -174,7 +174,7 @@ const Discover = () => {
       
       <main className="flex-grow pt-24 pb-16">
         {/* Hero Section */}
-        <div className="relative bg-gradient-to-r from-blue-600 to-indigo-700 py-20 px-4">
+        <div className="relative bg-gradient-to-r from-gray-600 to-white py-10 px-4">
           <div className="absolute inset-0 bg-grid-white/[0.05]"></div>
           <div className="container mx-auto relative z-10 max-w-6xl">
             <motion.div
@@ -182,10 +182,10 @@ const Discover = () => {
               animate={{ opacity: 1, y: 0 }}
               className="text-center mb-12"
             >
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
+              <h1 className="text-4xl md:text-6xl font-bold text-black mb-4">
                 Discover Latest Webinars
               </h1>
-              <p className="text-xl text-blue-100 max-w-2xl mx-auto">
+              <p className="text-xl text-gray-900 max-w-2xl mx-auto">
                 Explore the newest and most exciting webinars happening now. 
                 Join live sessions or register for upcoming events.
               </p>
@@ -384,17 +384,17 @@ const Discover = () => {
         </section>
         
         {/* CTA Section */}
-        <section className="py-20 px-4 bg-gradient-to-r from-blue-600 to-indigo-700">
+        <section className="py-10 px-4 bg-gradient-to-r from-gray-600 to-white">
           <div className="container mx-auto max-w-4xl text-center">
             <motion.h2 
-              className="text-3xl md:text-4xl font-bold text-white mb-6"
+              className="text-3xl md:text-4xl font-bold text-black mb-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
               Ready to Host Your Own Webinar?
             </motion.h2>
             <motion.p 
-              className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto"
+              className="text-xl text-gray-900 mb-10 max-w-2xl mx-auto"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
@@ -406,7 +406,7 @@ const Discover = () => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
             >
-              <Button className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg font-bold rounded-xl shadow-lg">
+              <Button onClick={() => {window.location.href = '/login';}} className="bg-white text-gray-900 hover:bg-gray-600 hover:text-white px-8 py-6 text-lg font-bold rounded-xl shadow-lg">
                 Start Hosting Today
               </Button>
             </motion.div>

@@ -406,7 +406,7 @@ const Discover = () => {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
             >
-              <Button onClick={() => {window.location.href = '/login';}} className="bg-white text-gray-900 hover:bg-gray-600 hover:text-white px-8 py-6 text-lg font-bold rounded-xl shadow-lg">
+              <Button onClick={() => {window.location.href = '/login';}} className="bg-white text-gray-900 hover:bg-blue-600 hover:text-white px-8 py-6 text-lg font-bold rounded-xl shadow-lg">
                 Start Hosting Today
               </Button>
             </motion.div>

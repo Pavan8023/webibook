@@ -169,7 +169,7 @@ const Discover = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen flex flex-col bg-white">
       <Navbar />
       
       <main className="flex-grow pt-24 pb-16">
@@ -384,7 +384,7 @@ const Discover = () => {
         </section>
         
         {/* CTA Section */}
-        <section className="py-10 px-4 bg-gradient-to-r from-gray-600 to-white">
+        <section className="py-10 px-4 bg-white">
           <div className="container mx-auto max-w-4xl text-center">
             <motion.h2 
               className="text-3xl md:text-4xl font-bold text-black mb-6"

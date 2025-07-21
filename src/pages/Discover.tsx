@@ -174,7 +174,7 @@ const Discover = () => {
       
       <main className="flex-grow pt-24 pb-16">
         {/* Hero Section */}
-        <div className="relative bg-gradient-to-r from-gray-600 to-white py-10 px-4">
+        <div className="relative bg-white py-10 px-4">
           <div className="absolute inset-0 bg-grid-white/[0.05]"></div>
           <div className="container mx-auto relative z-10 max-w-6xl">
             <motion.div

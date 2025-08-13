@@ -1,22 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  updateDoc, 
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
   deleteDoc,
   query,
-  where
+  where,
+  arrayUnion,
+  increment
 } from 'firebase/firestore';
-import { 
-  getAuth, 
+import {
+  getAuth,
   reauthenticateWithCredential,
   EmailAuthProvider,
   updatePassword,
   deleteUser,
-  signOut
+  signOut,
+  User as FirebaseUser
 } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -41,6 +44,7 @@ interface UserData {
   bio?: string;
   phone?: string;
   provider?: string;
+  bookedEvents?: string[];
 }
 
 interface EventData {
@@ -55,6 +59,8 @@ interface EventData {
   hostPhoto: string;
   dailyRoomUrl?: string;
   status?: string;
+  attendeeCount?: number;
+  attendeeIds?: string[];
 }
 
 // Error mapping to natural English
@@ -97,7 +103,7 @@ const getFriendlyError = (errorCode: string) => {
     'auth/web-storage-unsupported': 'This browser does not support web storage',
     'default': 'An unexpected error occurred. Please try again'
   };
-  
+
   return errors[errorCode] || errors['default'];
 };
 
@@ -110,7 +116,7 @@ const ErrorPopup = ({ message, onClose }: { message: string, onClose: () => void
             <h3 className="font-bold">Error</h3>
             <p>{message}</p>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="ml-4 text-white hover:text-gray-200 focus:outline-none"
           >
@@ -184,17 +190,26 @@ const CountdownTimer = ({ eventDate, eventTime }: { eventDate: string, eventTime
   );
 };
 
-const EventsSection = ({ events, loading }: { events: EventData[], loading: boolean }) => {
+interface EventsSectionProps {
+  events: EventData[];
+  loading: boolean;
+  user: FirebaseUser | null;
+  userData: UserData | null;
+  onBookEvent: (eventId: string) => Promise<void>;
+}
+
+const EventsSection = ({ events, loading, user, userData, onBookEvent }: EventsSectionProps) => {
   const [activeTab, setActiveTab] = useState('upcoming');
+  const navigate = useNavigate();
 
   const categorizeEvents = () => {
     const currentDate = new Date();
-    
+
     return events.reduce((acc: { upcoming: EventData[]; past: EventData[] }, event) => {
       const eventDateObj = new Date(`${event.date}T${event.time}`);
       const durationInMinutes = parseInt(event.duration, 10);
       const endTime = new Date(eventDateObj.getTime() + durationInMinutes * 60000);
-      
+
       if (currentDate < eventDateObj) {
         acc.upcoming.push(event);
       } else if (currentDate >= eventDateObj && currentDate <= endTime) {
@@ -202,7 +217,7 @@ const EventsSection = ({ events, loading }: { events: EventData[], loading: bool
       } else {
         acc.past.push(event);
       }
-      
+
       return acc;
     }, { upcoming: [], past: [] });
   };
@@ -214,8 +229,35 @@ const EventsSection = ({ events, loading }: { events: EventData[], loading: bool
       alert("This event doesn't have a meeting room configured");
       return;
     }
-    
+
     window.open(event.dailyRoomUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleBookEvent = async (eventId: string) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await onBookEvent(eventId);
+    } catch (error) {
+      console.error('Error booking event:', error);
+      alert('Failed to book event. Please try again.');
+    }
+  };
+
+  const isEventBooked = (eventId: string) => {
+    return userData?.bookedEvents?.includes(eventId);
+  };
+
+  const isEventLive = (event: EventData) => {
+    const eventDateObj = new Date(`${event.date}T${event.time}`);
+    const durationInMinutes = parseInt(event.duration, 10);
+    const endTime = new Date(eventDateObj.getTime() + durationInMinutes * 60000);
+    const now = new Date();
+
+    return now >= eventDateObj && now <= endTime;
   };
 
   return (
@@ -245,8 +287,9 @@ const EventsSection = ({ events, loading }: { events: EventData[], loading: bool
                   const eventDateObj = new Date(`${event.date}T${event.time}`);
                   const durationInMinutes = parseInt(event.duration, 10);
                   const endTime = new Date(eventDateObj.getTime() + durationInMinutes * 60000);
-                  const isLive = new Date() >= eventDateObj && new Date() <= endTime;
-                  
+                  const isLive = isEventLive(event);
+                  const isBooked = isEventBooked(event.id);
+
                   return (
                     <div
                       key={event.id}
@@ -285,7 +328,7 @@ const EventsSection = ({ events, loading }: { events: EventData[], loading: bool
                           )}
                           <span className="text-sm">{event.hostName}</span>
                         </div>
-                        
+
                         {isLive ? (
                           <div className="mb-3">
                             <Badge variant="default" className="w-full text-center py-1 bg-red-100 text-red-800">
@@ -309,18 +352,30 @@ const EventsSection = ({ events, loading }: { events: EventData[], loading: bool
                           <p className="text-sm text-muted-foreground mb-3">
                             <span className="font-medium">Duration:</span> {event.duration} minutes
                           </p>
-                          
+
                           <div className="w-full">
-                            <Button
-                              className={`w-full bg-gradient-to-r text-white font-bold py-3 rounded-lg ${
-                                isLive 
-                                  ? 'from-red-500 to-red-700' 
-                                  : 'from-blue-500 to-blue-700'
-                              }`}
-                              onClick={() => handleJoinEvent(event)}
-                            >
-                              {isLive ? 'Join Meeting' : 'Join Meeting'}
-                            </Button>
+                            {isLive ? (
+                              <Button
+                                className="w-full bg-gradient-to-r from-green-500 to-green-700 text-white font-bold py-3 rounded-lg"
+                                onClick={() => handleJoinEvent(event)}
+                              >
+                                Join Meeting
+                              </Button>
+                            ) : isBooked ? (
+                              <Button
+                                className="w-full bg-gradient-to-r from-purple-500 to-purple-700 text-white font-bold py-3 rounded-lg"
+                                disabled
+                              >
+                                Booked
+                              </Button>
+                            ) : (
+                              <Button
+                                className="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white font-bold py-3 rounded-lg"
+                                onClick={() => handleBookEvent(event.id)}
+                              >
+                                Book Now
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -440,7 +495,7 @@ const ProfileSection = ({ user, userData }: { user: any, userData: UserData }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    
+
     try {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
@@ -449,7 +504,7 @@ const ProfileSection = ({ user, userData }: { user: any, userData: UserData }) =
           bio: formData.bio,
           phone: formData.phone
         });
-        
+
         toast({
           title: "Profile Updated",
           description: "Your profile has been successfully updated.",
@@ -518,7 +573,7 @@ const ProfileSection = ({ user, userData }: { user: any, userData: UserData }) =
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="bio">Bio</Label>
             <Textarea
@@ -530,7 +585,7 @@ const ProfileSection = ({ user, userData }: { user: any, userData: UserData }) =
               rows={4}
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="phone">Phone Number</Label>
             <Input
@@ -542,7 +597,7 @@ const ProfileSection = ({ user, userData }: { user: any, userData: UserData }) =
               placeholder="+1 (555) 000-0000"
             />
           </div>
-          
+
           <div className="flex justify-end">
             <Button type="submit" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Profile"}
@@ -554,7 +609,7 @@ const ProfileSection = ({ user, userData }: { user: any, userData: UserData }) =
   );
 };
 
-const SettingsSection = ({ user }: { user: any }) => {
+const SettingsSection = ({ user }: { user: FirebaseUser | null }) => {
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
@@ -571,6 +626,12 @@ const SettingsSection = ({ user }: { user: any }) => {
   const [deleteEmail, setDeleteEmail] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [providerInfo, setProviderInfo] = useState<{
+    type: string;
+    name: string;
+    logo: string;
+    link: string;
+  } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -578,9 +639,30 @@ const SettingsSection = ({ user }: { user: any }) => {
     const loadSettings = async () => {
       if (user) {
         try {
+          // Check provider type
+          const providerId = user.providerData[0]?.providerId;
+          if (providerId === 'google.com') {
+            setProviderInfo({
+              type: 'google',
+              name: 'Google',
+              logo: "https://www.freepnglogos.com/uploads/google-logo-png/google-logo-icon-png-transparent-background-osteopathy-16.png",
+              link: 'https://myaccount.google.com/security'
+            });
+          } else if (providerId === 'twitter.com') {
+            setProviderInfo({
+              type: 'twitter',
+              name: 'Twitter',
+              logo: "https://static.vecteezy.com/system/resources/previews/027/395/710/original/twitter-brand-new-logo-3-d-with-new-x-shaped-graphic-of-the-world-s-most-popular-social-media-free-png.png",
+              link: 'https://twitter.com/settings/password'
+            });
+          } else {
+            setProviderInfo(null);
+          }
+
+          // Load settings
           const userRef = doc(db, 'users', user.uid);
           const userDoc = await getDoc(userRef);
-          
+
           if (userDoc.exists()) {
             const data = userDoc.data();
             setNotifications({
@@ -596,7 +678,7 @@ const SettingsSection = ({ user }: { user: any }) => {
         }
       }
     };
-    
+
     loadSettings();
   }, [user]);
 
@@ -609,14 +691,14 @@ const SettingsSection = ({ user }: { user: any }) => {
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
-    
+
     try {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, {
           notifications
         });
-        
+
         toast({
           title: "Settings Updated",
           description: "Your preferences have been saved.",
@@ -635,26 +717,26 @@ const SettingsSection = ({ user }: { user: any }) => {
       setError("New passwords don't match");
       return;
     }
-    
+
     if (newPassword.length < 6) {
       setError("Password should be at least 6 characters");
       return;
     }
-    
+
     setIsChangingPassword(true);
     setError(null);
-    
+
     try {
       if (user) {
-        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+        const credential = EmailAuthProvider.credential(user.email || '', currentPassword);
         await reauthenticateWithCredential(user, credential);
         await updatePassword(user, newPassword);
-        
+
         toast({
           title: "Password Updated",
           description: "Your password has been changed successfully.",
         });
-        
+
         // Reset form
         setCurrentPassword('');
         setNewPassword('');
@@ -674,32 +756,34 @@ const SettingsSection = ({ user }: { user: any }) => {
       setError("Please enter your email address");
       return;
     }
-    
-    if (deleteEmail !== user.email) {
+
+    if (deleteEmail !== user?.email) {
       setError("Email does not match your account");
       return;
     }
-    
+
     setIsDeleting(true);
     setError(null);
-    
+
     try {
       // Delete user data from Firestore
       const userRef = doc(db, 'users', user.uid);
       await deleteDoc(userRef);
-      
+
       // Delete events hosted by this user
       const eventsRef = collection(db, 'events');
       const q = query(eventsRef, where('hostId', '==', user.uid));
       const querySnapshot = await getDocs(q);
-      
+
       querySnapshot.forEach(async (doc) => {
         await deleteDoc(doc.ref);
       });
-      
+
       // Delete user from Firebase Auth
-      await deleteUser(user);
-      
+      if (user) {
+        await deleteUser(user);
+      }
+
       // Sign out and redirect
       await signOut(auth);
       navigate('/');
@@ -735,12 +819,12 @@ const SettingsSection = ({ user }: { user: any }) => {
   return (
     <Card className="mb-8">
       {error && (
-        <ErrorPopup 
-          message={error} 
-          onClose={() => setError(null)} 
+        <ErrorPopup
+          message={error}
+          onClose={() => setError(null)}
         />
       )}
-      
+
       <CardHeader>
         <CardTitle>Settings</CardTitle>
         <CardDescription>Manage your account preferences</CardDescription>
@@ -757,14 +841,14 @@ const SettingsSection = ({ user }: { user: any }) => {
                     Receive updates via email
                   </p>
                 </div>
-                <Button 
+                <Button
                   variant={notifications.email ? "default" : "outline"}
                   onClick={() => handleNotificationChange('email')}
                 >
                   {notifications.email ? "Enabled" : "Disabled"}
                 </Button>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Push Notifications</p>
@@ -772,14 +856,14 @@ const SettingsSection = ({ user }: { user: any }) => {
                     Get alerts on your device
                   </p>
                 </div>
-                <Button 
+                <Button
                   variant={notifications.push ? "default" : "outline"}
                   onClick={() => handleNotificationChange('push')}
                 >
                   {notifications.push ? "Enabled" : "Disabled"}
                 </Button>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Event Reminders</p>
@@ -787,7 +871,7 @@ const SettingsSection = ({ user }: { user: any }) => {
                     Receive reminders before events
                   </p>
                 </div>
-                <Button 
+                <Button
                   variant={notifications.reminders ? "default" : "outline"}
                   onClick={() => handleNotificationChange('reminders')}
                 >
@@ -796,10 +880,32 @@ const SettingsSection = ({ user }: { user: any }) => {
               </div>
             </div>
           </div>
-          
+
           <div>
             <h3 className="text-lg font-medium mb-4">Password</h3>
-            {changePasswordOpen ? (
+            {providerInfo ? (
+              <div className="p-4 border rounded-lg bg-gray-50">
+                <div className="flex items-center mb-3">
+                  <img
+                    src={providerInfo.logo}
+                    alt={providerInfo.name}
+                    className="w-6 h-6 mr-2"
+                  />
+                  <span className="font-medium">Account secured by {providerInfo.name}</span>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your password is managed by {providerInfo.name}. To change your password,
+                  please visit your {providerInfo.name} account settings.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => window.open(providerInfo.link, '_blank')}
+                >
+                  Change Password on {providerInfo.name}
+                </Button>
+              </div>
+            ) : changePasswordOpen ? (
               <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
                 <div className="space-y-2">
                   <Label htmlFor="currentPassword">Current Password</Label>
@@ -811,7 +917,7 @@ const SettingsSection = ({ user }: { user: any }) => {
                     placeholder="Enter your current password"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
                   <Input
@@ -822,7 +928,7 @@ const SettingsSection = ({ user }: { user: any }) => {
                     placeholder="Enter your new password"
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm New Password</Label>
                   <Input
@@ -833,16 +939,16 @@ const SettingsSection = ({ user }: { user: any }) => {
                     placeholder="Confirm your new password"
                   />
                 </div>
-                
+
                 <div className="flex gap-2">
-                  <Button 
+                  <Button
                     onClick={handleChangePassword}
                     disabled={isChangingPassword}
                   >
                     {isChangingPassword ? "Updating..." : "Update Password"}
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setChangePasswordOpen(false)}
                   >
                     Cancel
@@ -850,8 +956,8 @@ const SettingsSection = ({ user }: { user: any }) => {
                 </div>
               </div>
             ) : (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full"
                 onClick={() => setChangePasswordOpen(true)}
               >
@@ -859,7 +965,7 @@ const SettingsSection = ({ user }: { user: any }) => {
               </Button>
             )}
           </div>
-          
+
           <div>
             <h3 className="text-lg font-medium mb-4">Account Management</h3>
             <div className="space-y-4">
@@ -869,7 +975,7 @@ const SettingsSection = ({ user }: { user: any }) => {
                     <p className="text-red-700 font-medium">
                       This action is permanent and cannot be undone. All your data will be deleted immediately.
                     </p>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="deleteEmail" className="text-red-700">
                         To confirm, please enter your email address:
@@ -883,17 +989,17 @@ const SettingsSection = ({ user }: { user: any }) => {
                         className="border-red-300"
                       />
                     </div>
-                    
+
                     <div className="flex gap-2">
-                      <Button 
-                        variant="destructive" 
+                      <Button
+                        variant="destructive"
                         onClick={handleDeleteAccount}
                         disabled={isDeleting}
                       >
                         {isDeleting ? "Deleting..." : "Permanently Delete Account"}
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={() => setDeleteAccountOpen(false)}
                       >
                         Cancel
@@ -903,8 +1009,8 @@ const SettingsSection = ({ user }: { user: any }) => {
                 </div>
               ) : (
                 <div className="flex justify-end">
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     onClick={() => setDeleteAccountOpen(true)}
                   >
                     Delete Account
@@ -913,7 +1019,7 @@ const SettingsSection = ({ user }: { user: any }) => {
               )}
             </div>
           </div>
-          
+
           <div className="flex justify-end pt-4">
             <Button onClick={handleSaveSettings} disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Preferences"}
@@ -931,7 +1037,7 @@ const Attendee = () => {
   const [events, setEvents] = useState<EventData[]>([]);
   const [userData, setUserData] = useState<UserData | null>(null);
   const location = useLocation();
-  
+
   // Determine active section based on URL hash
   const activeSection = location.hash.substring(1) || 'events';
 
@@ -966,7 +1072,9 @@ const Attendee = () => {
             hostName,
             hostPhoto,
             dailyRoomUrl: eventData.dailyRoomUrl || '',
-            status: eventData.status || 'upcoming'
+            status: eventData.status || 'upcoming',
+            attendeeCount: eventData.attendeeCount || 0,
+            attendeeIds: eventData.attendeeIds || []
           };
         }));
 
@@ -985,27 +1093,80 @@ const Attendee = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user) return;
-      
+
       try {
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
-        
+
         if (userDoc.exists()) {
           setUserData(userDoc.data() as UserData);
         } else {
           setUserData({
             name: user.displayName || '',
             email: user.email || '',
-            photoURL: user.photoURL || ''
+            photoURL: user.photoURL || '',
+            bookedEvents: []
           });
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
       }
     };
-    
+
     fetchUserData();
   }, [user]);
+
+  // Handle event booking
+  const handleBookEvent = async (eventId: string) => {
+    if (!user) return;
+
+    try {
+      // Update event document
+      const eventRef = doc(db, 'events', eventId);
+      await updateDoc(eventRef, {
+        attendeeCount: increment(1),
+        attendeeIds: arrayUnion(user.uid)
+      });
+
+      // Update user document
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        bookedEvents: arrayUnion(eventId)
+      });
+
+      // Update local state
+      setEvents(prevEvents => prevEvents.map(event => {
+        if (event.id === eventId) {
+          return {
+            ...event,
+            attendeeCount: (event.attendeeCount || 0) + 1,
+            attendeeIds: [...(event.attendeeIds || []), user?.uid || '']
+          };
+        }
+        return event;
+      }));
+
+      // Update user data
+      if (userData) {
+        setUserData({
+          ...userData,
+          bookedEvents: [...(userData.bookedEvents || []), eventId]
+        });
+      }
+
+      // Notification strategy
+      // In a real app, we would:
+      // 1. Schedule a Cloud Function to run at event start time
+      // 2. Use Firebase Cloud Messaging for push notifications
+      // 3. Use EmailJS for email notifications
+      // This is just a placeholder implementation
+      console.log('Event booked! Notification would be scheduled here.');
+
+    } catch (error) {
+      console.error('Error booking event:', error);
+      throw error;
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -1029,15 +1190,22 @@ const Attendee = () => {
 
           {/* Conditional Rendering Based on Hash */}
           {activeSection === 'events' && (
-            <EventsSection events={events} loading={loadingEvents} />
+            <EventsSection
+              events={events}
+              loading={loadingEvents}
+              user={user ?? null}
+              userData={userData}
+              onBookEvent={handleBookEvent}
+            />
+
           )}
-          
+
           {activeSection === 'profile' && userData && (
             <ProfileSection user={user} userData={userData} />
           )}
-          
+
           {activeSection === 'settings' && (
-            <SettingsSection user={user} />
+            <SettingsSection user={user ?? null} />
           )}
         </div>
       </main>

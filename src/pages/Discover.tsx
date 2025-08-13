@@ -75,6 +75,27 @@ const Discover = () => {
     return currentTime >= eventDate;
   };
 
+  // Calculate event end time
+  const getEventEndTime = (webinar: Webinar) => {
+    const eventDate = new Date(`${webinar.date}T${webinar.time}`);
+    const durationMinutes = parseInt(webinar.duration) || 60;
+    const endTime = new Date(eventDate.getTime() + durationMinutes * 60000);
+    return endTime;
+  };
+
+  // Check if event is live
+  const isEventLive = (webinar: Webinar) => {
+    const startTime = new Date(`${webinar.date}T${webinar.time}`);
+    const endTime = getEventEndTime(webinar);
+    return currentTime >= startTime && currentTime <= endTime;
+  };
+
+  // Check if event is upcoming
+  const isEventUpcoming = (webinar: Webinar) => {
+    const startTime = new Date(`${webinar.date}T${webinar.time}`);
+    return currentTime < startTime;
+  };
+
   // Fetch host profile images
   useEffect(() => {
     const fetchHostImages = async () => {
@@ -134,7 +155,12 @@ const Discover = () => {
         });
       });
       
-      setWebinars(latestWebinars);
+      // Filter out completed events and show only live/upcoming
+      const filteredWebinars = latestWebinars.filter(webinar => 
+        webinar.status === 'live' || webinar.status === 'upcoming'
+      );
+      
+      setWebinars(filteredWebinars);
       setLoading(false);
     });
 
@@ -150,8 +176,12 @@ const Discover = () => {
   }, []);
 
   const handleBookClick = (webinar: Webinar) => {
-    setSelectedWebinar(webinar);
-    setShowWaitingModal(true);
+    if (!user) {
+      setShowLoginModal(true);
+    } else {
+      setSelectedWebinar(webinar);
+      setShowWaitingModal(true);
+    }
   };
 
   const handleJoinClick = (webinar: Webinar) => {
@@ -209,7 +239,7 @@ const Discover = () => {
                 <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
               </div>
             ) : webinars.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {webinars.map((webinar, index) => (
                   <motion.div
                     key={webinar.id}
@@ -341,7 +371,7 @@ const Discover = () => {
                                 </div>
                               </div>
                               
-                              {hasEventStarted(webinar) ? (
+                              {webinar.status === 'live' ? (
                                 <Button 
                                   size="sm"
                                   className="bg-green-600 hover:bg-green-700"

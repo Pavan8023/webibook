@@ -3,7 +3,6 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Hero } from '@/components/sections/Hero';
 import { FeaturedWebinars } from '@/components/sections/FeaturedWebinars';
-import { TrendingWebinars } from '@/components/sections/TrendingWebinars';
 
 const Index = () => {
   return (
@@ -12,7 +11,6 @@ const Index = () => {
       <main className="flex-grow">
         <Hero />
         <FeaturedWebinars />
-        <TrendingWebinars />
       </main>
       <Footer />
     </div>

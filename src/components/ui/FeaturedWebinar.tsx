@@ -1,10 +1,13 @@
-
+// components/ui/FeaturedWebinar.tsx
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { CategoryBadge } from './CategoryBadge';
 import { Calendar, Clock, User, ArrowRight } from 'lucide-react';
 import { WebinarType } from './WebinarCard';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 interface FeaturedWebinarProps {
   webinar: WebinarType;
@@ -12,12 +15,27 @@ interface FeaturedWebinarProps {
 
 export const FeaturedWebinar = ({ webinar }: FeaturedWebinarProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
-  
+  const [user] = useAuthState(auth);
+  const navigate = useNavigate();
+
   const formattedDate = new Date(webinar.date).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   });
+
+  const handleAction = () => {
+    if (!user) {
+      toast.warning('Please login first to register or view details', {
+        action: {
+          label: 'Login',
+          onClick: () => navigate('/login')
+        }
+      });
+    } else {
+      navigate(`/webinar/${webinar.id}`);
+    }
+  };
 
   return (
     <div className="relative rounded-2xl overflow-hidden bg-black text-white h-[500px] md:h-[600px] lg:h-[650px]">
@@ -65,18 +83,23 @@ export const FeaturedWebinar = ({ webinar }: FeaturedWebinarProps) => {
           </div>
           
           <div className="flex flex-wrap gap-3 animate-fade-up" style={{ animationDelay: '0.5s' }}>
-            <Link to={`/webinar/${webinar.id}`}>
-              <Button size="lg" className="group">
-                Register Now
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              className="group"
+              onClick={handleAction}
+            >
+              Register Now
+              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Button>
             
-            <Link to={`/webinar/${webinar.id}`}>
-              <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10">
-                Learn More
-              </Button>
-            </Link>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-white/20 text-black bg-blue-300 hover:bg-white"
+              onClick={handleAction}
+            >
+              Learn More
+            </Button>
           </div>
         </div>
       </div>

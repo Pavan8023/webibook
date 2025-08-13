@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, Edit, Save, Trash, Pencil, Eye, Copy, Video } from 'lucide-react';
+import { Plus, X, Edit, Save, Trash, Pencil, Eye, Copy, Video, Users } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -14,20 +14,20 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { 
-  addDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  deleteDoc, 
-  doc, 
+import {
+  addDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  deleteDoc,
+  doc,
   updateDoc,
   serverTimestamp,
   getDoc
 } from 'firebase/firestore';
-import { 
-  getAuth, 
+import {
+  getAuth,
   reauthenticateWithCredential,
   EmailAuthProvider,
   updatePassword,
@@ -83,6 +83,8 @@ interface Event {
   attendees: string[];
   eventType: string;
   dailyRoomUrl?: string;
+  attendeeCount: number;
+  attendeeIds: string[];
 }
 
 // DAILY.CO API
@@ -135,7 +137,7 @@ const getFriendlyError = (errorCode: string) => {
     'auth/web-storage-unsupported': 'This browser does not support web storage',
     'default': 'An unexpected error occurred. Please try again'
   };
-  
+
   return errors[errorCode] || errors['default'];
 };
 
@@ -148,7 +150,7 @@ const ErrorPopup = ({ message, onClose }: { message: string, onClose: () => void
             <h3 className="font-bold">Error</h3>
             <p>{message}</p>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="ml-4 text-white hover:text-gray-200 focus:outline-none"
           >
@@ -170,13 +172,16 @@ const Host = () => {
   const [averageAttendance, setAverageAttendance] = useState(0);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [viewingEvent, setViewingEvent] = useState<Event | null>(null);
+  const [viewingAttendees, setViewingAttendees] = useState<Event | null>(null);
+  const [attendeeDetails, setAttendeeDetails] = useState<any[]>([]);
+  const [loadingAttendees, setLoadingAttendees] = useState(false);
   const navigate = useNavigate();
   const [uploadedImageUrl, setUploadedImageUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const { toast } = useToast();
-  
+
   // Determine active section based on URL hash
   const activeSection = location.hash.substring(1) || 'events';
 
@@ -186,7 +191,7 @@ const Host = () => {
     script.src = 'https://upload-widget.cloudinary.com/global/all.js';
     script.async = true;
     document.body.appendChild(script);
-    
+
     return () => {
       document.body.removeChild(script);
     };
@@ -196,12 +201,12 @@ const Host = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user) return;
-      
+
       try {
         // Get user from unified users collection
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userRef);
-        
+
         if (userDoc.exists()) {
           const data = userDoc.data();
           setUserData({
@@ -235,19 +240,21 @@ const Host = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       if (!user) return;
-      
+
       try {
         const eventsRef = collection(db, 'events');
         const q = query(eventsRef, where('hostId', '==', user.uid));
         const querySnapshot = await getDocs(q);
-        
+
         const events: Event[] = [];
         let totalAttendees = 0;
         let totalCapacity = 0;
-        
+
         querySnapshot.forEach(doc => {
           const eventData = doc.data();
-          events.push({ 
+          const attendeeCount = eventData.attendeeCount || eventData.attendees?.length || 0;
+          
+          events.push({
             id: doc.id,
             title: eventData.title,
             description: eventData.description,
@@ -263,18 +270,20 @@ const Host = () => {
             status: eventData.status || 'upcoming',
             attendees: eventData.attendees || [],
             coverImageURL: eventData.coverImageURL || '',
-            dailyRoomUrl: eventData.dailyRoomUrl || ''
+            dailyRoomUrl: eventData.dailyRoomUrl || '',
+            attendeeCount,
+            attendeeIds: eventData.attendeeIds || []
           });
-          
+
           if (eventData.attendees && eventData.maxAttendees) {
-            totalAttendees += eventData.attendees.length;
+            totalAttendees += attendeeCount;
             totalCapacity += parseInt(eventData.maxAttendees);
           }
         });
-        
+
         setHostedEvents(events);
         setTotalEvents(events.length);
-        
+
         if (totalCapacity > 0) {
           setAverageAttendance(Math.round((totalAttendees / totalCapacity) * 100));
         }
@@ -349,7 +358,7 @@ const Host = () => {
     }
 
     setIsUploading(true);
-    
+
     const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
     const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -394,7 +403,7 @@ const Host = () => {
       },
       (error: any, result: any) => {
         setIsUploading(false);
-        
+
         if (!error && result && result.event === "success") {
           const imageUrl = result.info.secure_url;
           setUploadedImageUrl(imageUrl);
@@ -419,7 +428,7 @@ const Host = () => {
   // Image URL helpers
   const copyImageUrlToClipboard = () => {
     if (!uploadedImageUrl) return;
-    
+
     navigator.clipboard.writeText(uploadedImageUrl)
       .then(() => {
         toast({
@@ -439,7 +448,7 @@ const Host = () => {
 
   const applyImageUrlToForm = () => {
     if (!uploadedImageUrl) return;
-    
+
     setFormData(prev => ({ ...prev, coverImageURL: uploadedImageUrl }));
     toast({
       title: "Image applied!",
@@ -473,7 +482,7 @@ const Host = () => {
     try {
       // Create Daily.co room
       const dailyRoomUrl = await createDailyRoom(formData.title);
-      
+
       if (!dailyRoomUrl) {
         toast({
           title: "Error creating event",
@@ -500,7 +509,9 @@ const Host = () => {
         status: 'upcoming',
         attendees: [],
         coverImageURL: formData.coverImageURL,
-        dailyRoomUrl
+        dailyRoomUrl,
+        attendeeCount: 0,
+        attendeeIds: []
       };
 
       const docRef = await addDoc(eventsRef, eventData);
@@ -511,7 +522,7 @@ const Host = () => {
         ...eventData,
         createdAt: new Date()
       } as Event;
-      
+
       setHostedEvents(prev => [...prev, newEvent]);
       setTotalEvents(prev => prev + 1);
 
@@ -546,7 +557,7 @@ const Host = () => {
 
   const handleUpdateEvent = async () => {
     if (!user || !editingEvent) return;
-    
+
     try {
       const eventRef = doc(db, 'events', editingEvent.id);
       await updateDoc(eventRef, {
@@ -561,15 +572,15 @@ const Host = () => {
         coverImageURL: formData.coverImageURL
       });
 
-      setHostedEvents(prev => 
-        prev.map(event => 
-          event.id === editingEvent.id 
-            ? { 
-                ...event, 
-                ...formData, 
-                eventType,
-                status: event.status
-              } 
+      setHostedEvents(prev =>
+        prev.map(event =>
+          event.id === editingEvent.id
+            ? {
+              ...event,
+              ...formData,
+              eventType,
+              status: event.status
+            }
             : event
         )
       );
@@ -597,7 +608,7 @@ const Host = () => {
       await deleteDoc(doc(db, 'events', eventId));
       setHostedEvents(prev => prev.filter(event => event.id !== eventId));
       setTotalEvents(prev => prev - 1);
-      
+
       toast({
         title: "Event deleted",
         description: "Your event has been removed",
@@ -609,6 +620,40 @@ const Host = () => {
         description: "Please try again later",
         variant: "destructive"
       });
+    }
+  };
+
+  // Fetch attendee details
+  const fetchAttendeeDetails = async (event: Event) => {
+    setLoadingAttendees(true);
+    setViewingAttendees(event);
+    
+    try {
+      const attendeeIds = event.attendeeIds || [];
+      if (attendeeIds.length === 0) {
+        setAttendeeDetails([]);
+        return;
+      }
+      
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('__name__', 'in', attendeeIds));
+      const querySnapshot = await getDocs(q);
+      
+      const details = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setAttendeeDetails(details);
+    } catch (error) {
+      console.error('Error fetching attendees:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load attendee details",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingAttendees(false);
     }
   };
 
@@ -632,7 +677,7 @@ const Host = () => {
       }
 
       if (eventsToDelete.length > 0) {
-        setHostedEvents(prev => 
+        setHostedEvents(prev =>
           prev.filter(event => !eventsToDelete.some(e => e.id === event.id))
         );
         setTotalEvents(prev => prev - eventsToDelete.length);
@@ -695,7 +740,7 @@ const Host = () => {
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-  
+
     useEffect(() => {
       if (userData) {
         setFormData({
@@ -707,16 +752,16 @@ const Host = () => {
         setIsLoading(false);
       }
     }, [userData]);
-  
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value } = e.target;
       setFormData(prev => ({ ...prev, [name]: value }));
     };
-  
+
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsSaving(true);
-      
+
       try {
         if (user) {
           const userRef = doc(db, 'users', user.uid);
@@ -725,7 +770,7 @@ const Host = () => {
             bio: formData.bio,
             phone: formData.phone
           });
-          
+
           toast({
             title: "Profile Updated",
             description: "Your profile has been successfully updated.",
@@ -742,7 +787,7 @@ const Host = () => {
         setIsSaving(false);
       }
     };
-  
+
     if (isLoading) {
       return (
         <Card className="mb-8">
@@ -761,7 +806,7 @@ const Host = () => {
         </Card>
       );
     }
-  
+
     return (
       <Card className="mb-8">
         <CardHeader>
@@ -794,7 +839,7 @@ const Host = () => {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="bio">Bio</Label>
               <Textarea
@@ -806,7 +851,7 @@ const Host = () => {
                 rows={4}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
               <Input
@@ -818,7 +863,7 @@ const Host = () => {
                 placeholder="+1 (555) 000-0000"
               />
             </div>
-            
+
             <div className="flex justify-end">
               <Button type="submit" disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Profile"}
@@ -847,14 +892,14 @@ const Host = () => {
     const [deleteEmail, setDeleteEmail] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
-  
+
     useEffect(() => {
       const loadSettings = async () => {
         if (user) {
           try {
             const userRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userRef);
-            
+
             if (userDoc.exists()) {
               const data = userDoc.data();
               setNotifications({
@@ -870,27 +915,27 @@ const Host = () => {
           }
         }
       };
-      
+
       loadSettings();
     }, [user]);
-  
+
     const handleNotificationChange = (key: keyof typeof notifications) => {
       setNotifications(prev => ({
         ...prev,
         [key]: !prev[key]
       }));
     };
-  
+
     const handleSaveSettings = async () => {
       setIsSaving(true);
-      
+
       try {
         if (user) {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, {
             notifications
           });
-          
+
           toast({
             title: "Settings Updated",
             description: "Your preferences have been saved.",
@@ -903,32 +948,32 @@ const Host = () => {
         setIsSaving(false);
       }
     };
-  
+
     const handleChangePassword = async () => {
       if (newPassword !== confirmPassword) {
         setError("New passwords don't match");
         return;
       }
-      
+
       if (newPassword.length < 6) {
         setError("Password should be at least 6 characters");
         return;
       }
-      
+
       setIsChangingPassword(true);
       setError(null);
-      
+
       try {
         if (user) {
           const credential = EmailAuthProvider.credential(user.email, currentPassword);
           await reauthenticateWithCredential(user, credential);
           await updatePassword(user, newPassword);
-          
+
           toast({
             title: "Password Updated",
             description: "Your password has been changed successfully.",
           });
-          
+
           // Reset form
           setCurrentPassword('');
           setNewPassword('');
@@ -942,38 +987,38 @@ const Host = () => {
         setIsChangingPassword(false);
       }
     };
-  
+
     const handleDeleteAccount = async () => {
       if (!deleteEmail) {
         setError("Please enter your email address");
         return;
       }
-      
+
       if (deleteEmail !== user.email) {
         setError("Email does not match your account");
         return;
       }
-      
+
       setIsDeleting(true);
       setError(null);
-      
+
       try {
         // Delete user data from Firestore
         const userRef = doc(db, 'users', user.uid);
         await deleteDoc(userRef);
-        
+
         // Delete events hosted by this user
         const eventsRef = collection(db, 'events');
         const q = query(eventsRef, where('hostId', '==', user.uid));
         const querySnapshot = await getDocs(q);
-        
+
         querySnapshot.forEach(async (doc) => {
           await deleteDoc(doc.ref);
         });
-        
+
         // Delete user from Firebase Auth
         await deleteUser(user);
-        
+
         // Sign out and redirect
         await signOut(auth);
         navigate('/');
@@ -984,7 +1029,7 @@ const Host = () => {
         setIsDeleting(false);
       }
     };
-  
+
     if (isLoading) {
       return (
         <Card className="mb-8">
@@ -1005,16 +1050,16 @@ const Host = () => {
         </Card>
       );
     }
-  
+
     return (
       <Card className="mb-8">
         {error && (
-          <ErrorPopup 
-            message={error} 
-            onClose={() => setError(null)} 
+          <ErrorPopup
+            message={error}
+            onClose={() => setError(null)}
           />
         )}
-        
+
         <CardHeader>
           <CardTitle>Settings</CardTitle>
           <CardDescription>Manage your account preferences</CardDescription>
@@ -1031,14 +1076,14 @@ const Host = () => {
                       Receive updates via email
                     </p>
                   </div>
-                  <Button 
+                  <Button
                     variant={notifications.email ? "default" : "outline"}
                     onClick={() => handleNotificationChange('email')}
                   >
                     {notifications.email ? "Enabled" : "Disabled"}
                   </Button>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Push Notifications</p>
@@ -1046,14 +1091,14 @@ const Host = () => {
                       Get alerts on your device
                     </p>
                   </div>
-                  <Button 
+                  <Button
                     variant={notifications.push ? "default" : "outline"}
                     onClick={() => handleNotificationChange('push')}
                   >
                     {notifications.push ? "Enabled" : "Disabled"}
                   </Button>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Event Reminders</p>
@@ -1061,7 +1106,7 @@ const Host = () => {
                       Receive reminders before events
                     </p>
                   </div>
-                  <Button 
+                  <Button
                     variant={notifications.reminders ? "default" : "outline"}
                     onClick={() => handleNotificationChange('reminders')}
                   >
@@ -1070,7 +1115,7 @@ const Host = () => {
                 </div>
               </div>
             </div>
-            
+
             <div>
               <h3 className="text-lg font-medium mb-4">Password</h3>
               {changePasswordOpen ? (
@@ -1087,7 +1132,7 @@ const Host = () => {
                           placeholder="Enter your current password"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="newPassword">New Password</Label>
                         <Input
@@ -1098,7 +1143,7 @@ const Host = () => {
                           placeholder="Enter your new password"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="confirmPassword">Confirm New Password</Label>
                         <Input
@@ -1109,16 +1154,16 @@ const Host = () => {
                           placeholder="Confirm your new password"
                         />
                       </div>
-                      
+
                       <div className="flex gap-2">
-                        <Button 
+                        <Button
                           onClick={handleChangePassword}
                           disabled={isChangingPassword}
                         >
                           {isChangingPassword ? "Updating..." : "Update Password"}
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           onClick={() => setChangePasswordOpen(false)}
                         >
                           Cancel
@@ -1154,8 +1199,8 @@ const Host = () => {
                   )}
                 </div>
               ) : (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={() => setChangePasswordOpen(true)}
                 >
@@ -1163,7 +1208,7 @@ const Host = () => {
                 </Button>
               )}
             </div>
-            
+
             <div>
               <h3 className="text-lg font-medium mb-4">Account Management</h3>
               <div className="space-y-4">
@@ -1173,7 +1218,7 @@ const Host = () => {
                       <p className="text-red-700 font-medium">
                         This action is permanent and cannot be undone. All your data will be deleted immediately.
                       </p>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="deleteEmail" className="text-red-700">
                           To confirm, please enter your email address:
@@ -1187,17 +1232,17 @@ const Host = () => {
                           className="border-red-300"
                         />
                       </div>
-                      
+
                       <div className="flex gap-2">
-                        <Button 
-                          variant="destructive" 
+                        <Button
+                          variant="destructive"
                           onClick={handleDeleteAccount}
                           disabled={isDeleting}
                         >
                           {isDeleting ? "Deleting..." : "Permanently Delete Account"}
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           onClick={() => setDeleteAccountOpen(false)}
                         >
                           Cancel
@@ -1207,8 +1252,8 @@ const Host = () => {
                   </div>
                 ) : (
                   <div className="flex justify-end">
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       onClick={() => setDeleteAccountOpen(true)}
                     >
                       Delete Account
@@ -1217,7 +1262,7 @@ const Host = () => {
                 )}
               </div>
             </div>
-            
+
             <div className="flex justify-end pt-4">
               <Button onClick={handleSaveSettings} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Preferences"}
@@ -1280,8 +1325,8 @@ const Host = () => {
                       <CardTitle>
                         {editingEvent ? "Edit Event" : "Create New Event"}
                       </CardTitle>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="icon"
                         onClick={() => {
                           setShowForm(false);
@@ -1310,20 +1355,20 @@ const Host = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                        
+
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Event Title</label>
-                          <Input 
+                          <Input
                             name="title"
                             value={formData.title}
                             onChange={handleInputChange}
                             placeholder="Enter event title"
                           />
                         </div>
-                        
+
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Description</label>
-                          <Textarea 
+                          <Textarea
                             name="description"
                             value={formData.description}
                             onChange={handleInputChange}
@@ -1331,10 +1376,10 @@ const Host = () => {
                             rows={4}
                           />
                         </div>
-                        
+
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Category</label>
-                          <Select 
+                          <Select
                             value={formData.category}
                             onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                           >
@@ -1354,12 +1399,12 @@ const Host = () => {
                           </Select>
                         </div>
                       </div>
-                      
+
                       <div>
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Date</label>
-                            <Input 
+                            <Input
                               type="date"
                               name="date"
                               value={formData.date}
@@ -1368,7 +1413,7 @@ const Host = () => {
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1">Time</label>
-                            <Input 
+                            <Input
                               type="time"
                               name="time"
                               value={formData.time}
@@ -1376,11 +1421,11 @@ const Host = () => {
                             />
                           </div>
                         </div>
-                        
+
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Duration (min)</label>
-                            <Select 
+                            <Select
                               value={formData.duration}
                               onValueChange={(value) => setFormData(prev => ({ ...prev, duration: value }))}
                             >
@@ -1397,7 +1442,7 @@ const Host = () => {
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1">Max Attendees</label>
-                            <Input 
+                            <Input
                               type="number"
                               name="maxAttendees"
                               value={formData.maxAttendees}
@@ -1406,23 +1451,23 @@ const Host = () => {
                             />
                           </div>
                         </div>
-                        
+
                         <div className="mb-4">
                           <label className="block text-sm font-medium mb-1">Cover Image URL</label>
-                          <Input 
+                          <Input
                             name="coverImageURL"
                             value={formData.coverImageURL}
                             onChange={handleInputChange}
                             placeholder="Paste image URL here"
                           />
                         </div>
-                        
+
                         {/* Cloudinary image upload */}
                         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                           <h3 className="font-medium mb-3 text-center">Image Upload Tool</h3>
-                          
+
                           <div className="grid grid-cols-3 gap-4">
-                            <div 
+                            <div
                               className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer bg-white min-h-[120px]"
                               onClick={openCloudinaryWidget}
                             >
@@ -1432,9 +1477,9 @@ const Host = () => {
                                   <p className="text-sm text-muted-foreground">Uploading to Cloudinary...</p>
                                 </div>
                               ) : uploadedImageUrl ? (
-                                <img 
-                                  src={uploadedImageUrl} 
-                                  alt="Uploaded preview" 
+                                <img
+                                  src={uploadedImageUrl}
+                                  alt="Uploaded preview"
                                   className="h-24 w-full object-contain mb-2"
                                 />
                               ) : (
@@ -1448,9 +1493,9 @@ const Host = () => {
                                 </div>
                               )}
                             </div>
-                            
+
                             <div className="flex items-center justify-center">
-                              <Button 
+                              <Button
                                 onClick={copyImageUrlToClipboard}
                                 disabled={!uploadedImageUrl || isUploading}
                                 className="w-full h-12"
@@ -1458,9 +1503,9 @@ const Host = () => {
                                 <Copy className="mr-2 h-4 w-4" /> Copy URL
                               </Button>
                             </div>
-                            
+
                             <div className="flex items-center justify-center">
-                              <Button 
+                              <Button
                                 onClick={applyImageUrlToForm}
                                 disabled={!uploadedImageUrl || isUploading}
                                 className="w-full h-12"
@@ -1469,7 +1514,7 @@ const Host = () => {
                               </Button>
                             </div>
                           </div>
-                          
+
                           {uploadedImageUrl && (
                             <div className="mt-3 text-center">
                               <p className="text-xs text-muted-foreground break-all">
@@ -1502,8 +1547,8 @@ const Host = () => {
                     <CardHeader>
                       <div className="flex justify-between items-center">
                         <CardTitle>{viewingEvent.title}</CardTitle>
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="icon"
                           onClick={() => setViewingEvent(null)}
                         >
@@ -1518,18 +1563,18 @@ const Host = () => {
                             <label className="block text-sm font-medium mb-1">Event Type</label>
                             <p className="text-sm">{viewingEvent.eventType}</p>
                           </div>
-                          
+
                           <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">Description</label>
                             <p className="text-sm">{viewingEvent.description}</p>
                           </div>
-                          
+
                           <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">Category</label>
                             <p className="text-sm capitalize">{viewingEvent.category}</p>
                           </div>
                         </div>
-                        
+
                         <div>
                           <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
@@ -1543,7 +1588,7 @@ const Host = () => {
                               <p className="text-sm">{viewingEvent.time}</p>
                             </div>
                           </div>
-                          
+
                           <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-sm font-medium mb-1">Duration</label>
@@ -1554,13 +1599,13 @@ const Host = () => {
                               <p className="text-sm">{viewingEvent.maxAttendees}</p>
                             </div>
                           </div>
-                          
+
                           <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">Cover Image</label>
                             {viewingEvent.coverImageURL ? (
-                              <img 
-                                src={viewingEvent.coverImageURL} 
-                                alt="Event cover" 
+                              <img
+                                src={viewingEvent.coverImageURL}
+                                alt="Event cover"
                                 className="w-full h-48 object-cover rounded-lg"
                               />
                             ) : (
@@ -1573,7 +1618,7 @@ const Host = () => {
                       </div>
                     </CardContent>
                     <CardFooter className="flex justify-between">
-                      <Button 
+                      <Button
                         variant="outline"
                         onClick={() => {
                           setViewingEvent(null);
@@ -1582,7 +1627,7 @@ const Host = () => {
                       >
                         <Pencil className="mr-2 h-4 w-4" /> Edit
                       </Button>
-                      <Button 
+                      <Button
                         variant="destructive"
                         onClick={() => {
                           deleteEvent(viewingEvent.id);
@@ -1596,126 +1641,194 @@ const Host = () => {
                 </div>
               )}
 
+              {/* Attendees Modal */}
+              {viewingAttendees && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <Card className="w-full max-w-md">
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle>Attendees</CardTitle>
+                          <CardDescription>
+                            {viewingAttendees.attendeeCount} attendees for {viewingAttendees.title}
+                          </CardDescription>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setViewingAttendees(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingAttendees ? (
+                        <div className="flex justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        </div>
+                      ) : attendeeDetails.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p>No attendees registered yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {attendeeDetails.map((attendee, index) => (
+                            <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
+                              {attendee.photoURL ? (
+                                <img 
+                                  src={attendee.photoURL} 
+                                  alt={attendee.name}
+                                  className="w-10 h-10 rounded-full"
+                                />
+                              ) : (
+                                <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10" />
+                              )}
+                              <div>
+                                <p className="font-medium">{attendee.name || 'Unknown User'}</p>
+                                <p className="text-sm text-muted-foreground">{attendee.email}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                    <CardFooter className="flex justify-end">
+                      <Button onClick={() => setViewingAttendees(null)}>Close</Button>
+                    </CardFooter>
+                  </Card>
+                </div>
+              )}
+
               {/* Hosted Events List */}
-<Card className="mb-8">
-  <CardHeader>
-    <CardTitle>Your Hosted Events</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <div className="space-y-4">
-      {hostedEvents.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">You haven't hosted any events yet</p>
-          <Button className="mt-4" onClick={() => setShowForm(true)}>
-            Create Your First Event
-          </Button>
-        </div>
-      ) : (
-        hostedEvents.map(event => {
-          const now = new Date();
-          const eventDate = new Date(`${event.date}T${event.time}`);
-          const durationInMinutes = parseInt(event.duration, 10);
-          const endTime = new Date(eventDate.getTime() + durationInMinutes * 60000);
-          
-          // Calculate status
-          let status = 'upcoming';
-          if (now >= eventDate && now <= endTime) {
-            status = 'live';
-          } else if (now > endTime) {
-            status = 'past';
-          }
-          
-          return (
-            <div 
-              key={event.id} 
-              className="border rounded-lg p-4 flex flex-col sm:flex-row justify-between gap-4 sm:gap-0"
-            >
-              {/* Event Info */}
-              <div className="flex flex-1 min-w-0">
-                <div className="flex items-center space-x-4 min-w-0">
-                  {event.coverImageURL ? (
-                    <div className="flex-shrink-0">
-                      <img 
-                        src={event.coverImageURL} 
-                        alt={event.title} 
-                        className="w-16 h-16 rounded-md object-cover"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="min-w-0">
-                    <h3 className="font-medium truncate">{event.title}</h3>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {event.date} at {event.time}
-                    </p>
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>Your Hosted Events</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {hostedEvents.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">You haven't hosted any events yet</p>
+                        <Button className="mt-4" onClick={() => setShowForm(true)}>
+                          Create Your First Event
+                        </Button>
+                      </div>
+                    ) : (
+                      hostedEvents.map(event => {
+                        const now = new Date();
+                        const eventDate = new Date(`${event.date}T${event.time}`);
+                        const durationInMinutes = parseInt(event.duration, 10);
+                        const endTime = new Date(eventDate.getTime() + durationInMinutes * 60000);
+
+                        // Calculate status
+                        let status = 'upcoming';
+                        if (now >= eventDate && now <= endTime) {
+                          status = 'live';
+                        } else if (now > endTime) {
+                          status = 'past';
+                        }
+
+                        return (
+                          <div
+                            key={event.id}
+                            className="border rounded-lg p-4 flex flex-col sm:flex-row justify-between gap-4 sm:gap-0"
+                          >
+                            {/* Event Info */}
+                            <div className="flex flex-1 min-w-0">
+                              <div className="flex items-center space-x-4 min-w-0">
+                                {event.coverImageURL ? (
+                                  <div className="flex-shrink-0">
+                                    <img
+                                      src={event.coverImageURL}
+                                      alt={event.title}
+                                      className="w-16 h-16 rounded-md object-cover"
+                                    />
+                                  </div>
+                                ) : null}
+                                <div className="min-w-0">
+                                  <h3 className="font-medium truncate">{event.title}</h3>
+                                  <p className="text-sm text-muted-foreground truncate">
+                                    {event.date} at {event.time}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Stats and Actions */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                              {/* Attendees and Status */}
+                              <div className="flex items-center gap-4 sm:gap-6">
+                                <div className="text-center sm:text-left">
+                                  <div className="font-medium">{event.attendeeCount}</div>
+                                  <div className="text-xs text-muted-foreground">Attendees</div>
+                                </div>
+                                <Badge variant={
+                                  status === 'upcoming' ? 'secondary' :
+                                    status === 'live' ? 'default' : 'outline'
+                                }>
+                                  {status}
+                                </Badge>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex flex-wrap gap-2">
+                                {status === 'live' && (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="flex-1 sm:flex-initial"
+                                    onClick={() => startMeeting(event)}
+                                  >
+                                    <Video size={16} className="mr-1 sm:mr-2" />
+                                    <span className="hidden sm:inline">Start</span>
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 sm:flex-initial"
+                                  onClick={() => openViewEvent(event)}
+                                >
+                                  <Eye size={16} className="mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">View</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 sm:flex-initial"
+                                  onClick={() => openEditEvent(event)}
+                                >
+                                  <Pencil size={16} className="mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">Edit</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 sm:flex-initial"
+                                  onClick={() => fetchAttendeeDetails(event)}
+                                >
+                                  <Users size={16} className="mr-1 sm:mr-2" />
+                                  <span className="hidden sm:inline">Attendees</span>
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="flex-1 sm:flex-initial"
+                                  onClick={() => deleteEvent(event.id)}
+                                >
+                                  <Trash size={16} className="sm:mr-2" />
+                                  <span className="hidden sm:inline">Delete</span>
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                </div>
-              </div>
-              
-              {/* Stats and Actions */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-                {/* Attendees and Status */}
-                <div className="flex items-center gap-4 sm:gap-6">
-                  <div className="text-center sm:text-left">
-                    <div className="font-medium">{event.attendees.length}</div>
-                    <div className="text-xs text-muted-foreground">Attendees</div>
-                  </div>
-                  <Badge variant={
-                    status === 'upcoming' ? 'secondary' : 
-                    status === 'live' ? 'default' : 'outline'
-                  }>
-                    {status}
-                  </Badge>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2">
-                  {status === 'live' && (
-                    <Button 
-                      variant="default" 
-                      size="sm"
-                      className="flex-1 sm:flex-initial"
-                      onClick={() => startMeeting(event)}
-                    >
-                      <Video size={16} className="mr-1 sm:mr-2" /> 
-                      <span className="hidden sm:inline">Start</span>
-                    </Button>
-                  )}
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex-1 sm:flex-initial"
-                    onClick={() => openViewEvent(event)}
-                  >
-                    <Eye size={16} className="mr-1 sm:mr-2" /> 
-                    <span className="hidden sm:inline">View</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="flex-1 sm:flex-initial"
-                    onClick={() => openEditEvent(event)}
-                  >
-                    <Pencil size={16} className="mr-1 sm:mr-2" /> 
-                    <span className="hidden sm:inline">Edit</span>
-                  </Button>
-                  <Button 
-                    variant="destructive" 
-                    size="sm"
-                    className="flex-1 sm:flex-initial"
-                    onClick={() => deleteEvent(event.id)}
-                  >
-                    <Trash size={16} className="sm:mr-2" /> 
-                    <span className="hidden sm:inline">Delete</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })
-      )}
-    </div>
-  </CardContent>
-</Card>
+                </CardContent>
+              </Card>
 
               {/* Analytics Section */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1727,7 +1840,7 @@ const Host = () => {
                     <div className="text-3xl font-bold">{totalEvents}</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm font-medium">Average Attendance</CardTitle>
@@ -1736,7 +1849,7 @@ const Host = () => {
                     <div className="text-3xl font-bold">{averageAttendance}%</div>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm font-medium">Attendee Rating</CardTitle>
@@ -1748,17 +1861,17 @@ const Host = () => {
               </div>
             </>
           )}
-          
+
           {activeSection === 'profile' && userData && (
             <ProfileSection user={user} userData={userData} />
           )}
-          
+
           {activeSection === 'settings' && (
             <SettingsSection user={user} />
           )}
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

@@ -122,10 +122,16 @@ export const Navbar = () => {
     }
   };
 
+  // compute header background: fully opaque when mobile menu is open
+  const headerBgClass = isMobileMenuOpen
+    ? 'bg-white' // full opaque when menu open
+    : isScrolled
+      ? 'bg-white/90 backdrop-blur-md shadow-sm' // scroll style
+      : 'bg-transparent';
+
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-transparent'
-        }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBgClass}`}
     >
       <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2 px-4 sm:px-6">
         <Link
@@ -239,7 +245,7 @@ export const Navbar = () => {
           )}
         </div>
 
-        <button
+        <button style={{ zIndex: 201 }}
           className={`md:hidden p-2 z-50 ${isMobileMenuOpen ? 'fixed top-4 right-4' : 'relative'}`}
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
@@ -282,7 +288,7 @@ export const Navbar = () => {
       </div>
 
       {/* Mobile menu */}
-      <div
+      <div style={{ zIndex: 200 }}
         className={`md:hidden fixed inset-0 bg-white z-40 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
       >

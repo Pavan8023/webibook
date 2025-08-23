@@ -127,10 +127,16 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
     }
   };
 
+  // only change: choose header bg depending on scroll OR mobile menu open
+  const headerBgClass = isMobileMenuOpen
+    ? 'bg-white'
+    : isScrolled
+      ? 'bg-white/90 backdrop-blur-md shadow-sm'
+      : 'bg-transparent';
+
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm' : 'bg-transparent'
-        }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBgClass}`}
     >
       <div className="container-wide flex items-center justify-between h-16 md:h-20 py-2 px-4 sm:px-6">
         <Link
@@ -148,8 +154,8 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           <Link
             to={getDashboardLink()}
             className={`px-4 py-2 font-medium transition-colors ${location.pathname === getDashboardLink() && location.hash === ''
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-foreground/80 hover:text-foreground'
               }`}
           >
             Dashboard
@@ -157,8 +163,8 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           <Link
             to={`${getDashboardLink()}#profile`}
             className={`px-4 py-2 font-medium transition-colors ${isActive('profile')
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-foreground/80 hover:text-foreground'
               }`}
           >
             Profile
@@ -166,8 +172,8 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           <Link
             to={`${getDashboardLink()}#settings`}
             className={`px-4 py-2 font-medium transition-colors ${isActive('settings')
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-foreground/80 hover:text-foreground'
               }`}
           >
             Settings
@@ -244,7 +250,7 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           )}
         </div>
 
-        <button
+        <button style={{ zIndex: 201 }}
           className={`md:hidden p-2 z-50 ${isMobileMenuOpen ? 'fixed top-4 right-4' : 'relative'}`}
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
@@ -287,26 +293,26 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
       </div>
 
       {/* Mobile menu */}
-      <div
+      <div style={{ zIndex: 200 }}
         className={`md:hidden fixed inset-0 bg-white z-40 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
+        <Link
+          to={getDashboardLink()}
+          className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
+        >
+          <img src={WebiBookLogo} className="h-16 w-16 z-50" alt="Webibook" />
+          <span>
+            <span className="text-purple-600">Webi</span>
+            <span className="text-red-500">Book</span>
+          </span>
+        </Link>
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
-          <Link
-                    to={getDashboardLink()}
-                    className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6 mr-2">
-                      <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
-                      <path fill="currentColor" d="M8 8h8v2H8zm0 4h8v2H8zm0 4h5v2H8z" />
-                    </svg>
-                    Webibook
-                  </Link>
           <Link
             to={getDashboardLink()}
             className={`text-lg font-medium px-4 py-2 rounded-lg text-blue-900 ${location.pathname === getDashboardLink() && location.hash === ''
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
+              ? 'bg-blue-50 text-blue-600'
+              : 'hover:bg-gray-100'
               }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
@@ -315,8 +321,8 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           <Link
             to={`${getDashboardLink()}#profile`}
             className={`text-lg font-medium px-4 py-2 rounded-lg text-white-900 ${isActive('profile')
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
+              ? 'bg-blue-50 text-blue-600'
+              : 'hover:bg-gray-100'
               }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
@@ -325,8 +331,8 @@ export const DashboardNavbar = ({ userType }: DashboardNavbarProps) => {
           <Link
             to={`${getDashboardLink()}#settings`}
             className={`text-lg font-medium px-4 py-2 rounded-lg text-black ${isActive('settings')
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
+              ? 'bg-blue-50 text-blue-600'
+              : 'hover:bg-gray-100'
               }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >

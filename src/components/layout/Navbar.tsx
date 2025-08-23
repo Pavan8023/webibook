@@ -149,8 +149,8 @@ export const Navbar = () => {
           <Link
             to="/"
             className={`px-4 py-2 font-medium transition-colors ${location.pathname === '/'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-foreground/80 hover:text-foreground'
               }`}
           >
             Home
@@ -158,8 +158,8 @@ export const Navbar = () => {
           <Link
             to="/discover"
             className={`px-4 py-2 font-medium transition-colors ${location.pathname === '/discover'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-foreground/80 hover:text-foreground'
               }`}
           >
             Discover
@@ -167,8 +167,8 @@ export const Navbar = () => {
           <Link
             to="/categories"
             className={`px-4 py-2 font-medium transition-colors ${location.pathname === '/categories'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-foreground/80 hover:text-foreground'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-foreground/80 hover:text-foreground'
               }`}
           >
             Categories
@@ -292,12 +292,22 @@ export const Navbar = () => {
         className={`md:hidden fixed inset-0 bg-white z-40 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
       >
+        <Link style={{marginLeft:20}}
+          to={getDashboardLink()}
+          className="text-2xl font-display font-bold flex items-center text-webi-blue transition-opacity hover:opacity-90"
+        >
+          <img src={WebiBookLogo} className="h-16 w-16 z-50" alt="Webibook" />
+          <span>
+            <span className="text-purple-600">Webi</span>
+            <span className="text-red-500">Book</span>
+          </span>
+        </Link>
         <div className="flex flex-col h-full pt-20 p-6 space-y-6">
           <Link
             to="/"
             className={`text-lg font-medium px-4 py-2 rounded-lg ${location.pathname === '/'
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
+              ? 'bg-blue-50 text-blue-600'
+              : 'hover:bg-gray-100'
               }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
@@ -306,8 +316,8 @@ export const Navbar = () => {
           <Link
             to="/discover"
             className={`text-lg font-medium px-4 py-2 rounded-lg ${location.pathname === '/discover'
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
+              ? 'bg-blue-50 text-blue-600'
+              : 'hover:bg-gray-100'
               }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >
@@ -316,8 +326,8 @@ export const Navbar = () => {
           <Link
             to="/categories"
             className={`text-lg font-medium px-4 py-2 rounded-lg ${location.pathname === '/categories'
-                ? 'bg-blue-50 text-blue-600'
-                : 'hover:bg-gray-100'
+              ? 'bg-blue-50 text-blue-600'
+              : 'hover:bg-gray-100'
               }`}
             onClick={() => setIsMobileMenuOpen(false)}
           >

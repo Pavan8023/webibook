@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import WebiBookLogo from '/images/WebiBook.png';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import {
   FormMessage
 } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Calendar, User, Mail, Lock, ArrowRight } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -83,9 +84,12 @@ const SignUp = () => {
         <div className="container-tight py-8 md:py-16">
           <div className="max-w-xl mx-auto">
             <div className="text-center mb-8 animate-fade-down">
-              <Link to="/" className="inline-flex items-center mb-8 text-2xl font-display font-bold text-webi-blue">
-                <Calendar className="mr-2 h-6 w-6" />
-                Webibook
+              <Link to="/signup" className="inline-flex items-center mb-8 text-2xl font-display font-bold">
+                <img src={WebiBookLogo} className="h-16 w-16" alt="Webibook" />
+                <span>
+                  <span className="text-purple-600">Webi</span>
+                  <span className="text-red-500">book</span>
+                </span>
               </Link>
               <h1 className="text-3xl font-bold mb-3">Create your account</h1>
               <p className="text-muted-foreground">

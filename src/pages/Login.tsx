@@ -591,15 +591,13 @@ const Login = () => {
         <div className="container-tight py-16 md:py-24">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8 animate-fade-down">
-              <Link to="/" className="inline-flex items-center mb-8 text-2xl font-display font-bold">
-                <img src={WebiBookLogo} className="h-16 w-16 z-50" alt="Webibook" />
+              <Link to="/login" className="inline-flex items-center mb-8 text-2xl font-display font-bold">
+                <img src={WebiBookLogo} className="h-16 w-16" alt="Webibook" />
                 <span>
                   <span className="text-purple-600">Webi</span>
                   <span className="text-red-500">book</span>
                 </span>
               </Link>
-
-
               <h1 className="text-3xl font-bold mb-3">Welcome back</h1>
               <p className="text-muted-foreground">
                 Sign in to continue your webinar journey

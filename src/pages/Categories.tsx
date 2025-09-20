@@ -4,10 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Input } from '@/components/ui/input';
-import { Search, X } from 'lucide-react';
+import { Search, X, Video, Calendar, Clock, User } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
 interface CategoryData {
   id: string;
@@ -30,6 +33,7 @@ interface EventData {
   hostProfileImage?: string;
   category: string;
   dailyRoomUrl: string;
+  status?: 'upcoming' | 'live' | 'completed';
 }
 
 // Sample category data
@@ -96,9 +100,19 @@ const Categories = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
   const [events, setEvents] = useState<EventData[]>([]);
+  const [filteredEvents, setFilteredEvents] = useState<{
+    upcoming: EventData[];
+    live: EventData[];
+    completed: EventData[];
+  }>({
+    upcoming: [],
+    live: [],
+    completed: []
+  });
   const [loading, setLoading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [activeTab, setActiveTab] = useState('upcoming');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -113,6 +127,37 @@ const Categories = () => {
       fetchEvents(selectedCategory.name);
     }
   }, [selectedCategory]);
+
+  useEffect(() => {
+    // Categorize events based on current time
+    const now = new Date();
+    const upcoming: EventData[] = [];
+    const live: EventData[] = [];
+    const completed: EventData[] = [];
+
+    events.forEach(event => {
+      const eventDate = new Date(`${event.date}T${event.time}`);
+      const durationInMinutes = parseInt(event.duration, 10);
+      const endTime = new Date(eventDate.getTime() + durationInMinutes * 60000);
+
+      if (now < eventDate) {
+        // Event is upcoming
+        upcoming.push({ ...event, status: 'upcoming' });
+      } else if (now >= eventDate && now <= endTime) {
+        // Event is live
+        live.push({ ...event, status: 'live' });
+      } else {
+        // Event is completed
+        completed.push({ ...event, status: 'completed' });
+      }
+    });
+
+    setFilteredEvents({
+      upcoming,
+      live,
+      completed
+    });
+  }, [events]);
 
   const fetchEvents = async (categoryName: string) => {
     setLoading(true);
@@ -134,7 +179,7 @@ const Categories = () => {
           duration: data.duration,
           hostId: data.hostId,
           hostName: data.hostName,
-          hostProfileImage: data.hostProfileImage,
+          hostProfileImage: data.hostProfileImage || data.hostPhoto,
           category: data.category,
           dailyRoomUrl: data.dailyRoomUrl
         });
@@ -159,20 +204,116 @@ const Categories = () => {
   const backToCategories = () => {
     setSelectedCategory(null);
     setEvents([]);
+    setFilteredEvents({
+      upcoming: [],
+      live: [],
+      completed: []
+    });
   };
 
-  const handleEventClick = () => {
+  const handleActionClick = () => {
     if (!user) {
       setShowLoginModal(true);
-    } else {
-      // For logged-in users, we would navigate to the event details
-      // navigate(`/event/${eventId}`);
     }
   };
 
   const handleLoginRedirect = () => {
     setShowLoginModal(false);
     navigate('/login');
+  };
+
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  const renderEventCard = (event: EventData) => {
+    return (
+      <motion.div
+        key={event.id}
+        className="bg-white rounded-2xl overflow-hidden shadow-lg transform transition-transform"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ y: -5 }}
+      >
+        <div className="relative h-48 overflow-hidden">
+          {event.coverImageURL ? (
+            <img 
+              src={event.coverImageURL} 
+              alt={event.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-full flex items-center justify-center text-gray-500">
+              Event Image
+            </div>
+          )}
+          <div className="absolute top-3 left-3">
+            <Badge variant={
+              event.status === 'upcoming' ? 'secondary' : 
+              event.status === 'live' ? 'default' : 'outline'
+            }>
+              {event.status === 'live' ? 'LIVE NOW' : event.status}
+            </Badge>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
+            <div className="flex flex-col items-end text-right">
+              <div className="flex items-center text-sm text-gray-500">
+                <Calendar className="h-4 w-4 mr-1" />
+                <span>{formatDate(event.date)}</span>
+              </div>
+              <div className="flex items-center text-sm text-gray-500">
+                <Clock className="h-4 w-4 mr-1" />
+                <span>{event.time}</span>
+              </div>
+            </div>
+          </div>
+          
+          <p className="text-gray-600 mb-6 line-clamp-2">
+            {event.description}
+          </p>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              {event.hostProfileImage ? (
+                <img 
+                  src={event.hostProfileImage} 
+                  alt={event.hostName}
+                  className="w-10 h-10 rounded-full mr-3 object-cover"
+                />
+              ) : (
+                <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center">
+                  <User className="h-5 w-5 text-gray-500" />
+                </div>
+              )}
+              <div>
+                <p className="font-medium text-gray-900">{event.hostName}</p>
+                <p className="text-sm text-gray-500">Host</p>
+              </div>
+            </div>
+            
+            <Button 
+              onClick={handleActionClick}
+              variant={event.status === 'live' ? 'default' : 'outline'}
+              className={event.status === 'live' ? 'bg-red-600 hover:bg-red-700' : ''}
+            >
+              {event.status === 'upcoming' && 'Book Now'}
+              {event.status === 'live' && (
+                <>
+                  <Video className="h-4 w-4 mr-2" />
+                  Join Now
+                </>
+              )}
+              {event.status === 'completed' && 'Watch Replay'}
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+    );
   };
 
   return (
@@ -249,7 +390,7 @@ const Categories = () => {
               </motion.button>
               
               <motion.div 
-                className="mb-12"
+                className="mb-8"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
@@ -266,101 +407,95 @@ const Categories = () => {
                 </div>
               </motion.div>
               
-              {loading ? (
-                <motion.div 
-                  className="flex justify-center items-center h-64"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
-                </motion.div>
-              ) : (
-                <motion.div 
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  {events.length > 0 ? (
-                    events.map((event, index) => (
-                      <motion.div
-                        key={event.id}
-                        className="bg-white rounded-2xl overflow-hidden shadow-lg cursor-pointer transform transition-transform hover:scale-[1.02]"
-                        onClick={handleEventClick}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        whileHover={{ y: -5 }}
-                      >
-                        <div className="relative h-48 overflow-hidden">
-                          {event.coverImageURL ? (
-                            <img 
-                              src={event.coverImageURL} 
-                              alt={event.title}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-full flex items-center justify-center text-gray-500">
-                              Event Image
-                            </div>
-                          )}
-                          <div className="absolute bottom-3 left-3 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                            {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
-                          </div>
-                        </div>
-                        
-                        <div className="p-6">
-                          <div className="flex justify-between items-start mb-4">
-                            <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
-                            <div className="flex flex-col items-end">
-                              <span className="text-sm text-gray-500">{event.date}</span>
-                              <span className="text-sm text-gray-500">{event.time}</span>
-                            </div>
-                          </div>
-                          
-                          <p className="text-gray-600 mb-6 line-clamp-2">
-                            {event.description}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
+                <TabsList className="grid grid-cols-3 max-w-md">
+                  <TabsTrigger value="upcoming">Upcoming ({filteredEvents.upcoming.length})</TabsTrigger>
+                  <TabsTrigger value="live">Live ({filteredEvents.live.length})</TabsTrigger>
+                  <TabsTrigger value="completed">Completed ({filteredEvents.completed.length})</TabsTrigger>
+                </TabsList>
+                
+                {loading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : (
+                  <>
+                    <TabsContent value="upcoming" className="mt-6">
+                      {filteredEvents.upcoming.length > 0 ? (
+                        <motion.div 
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          {filteredEvents.upcoming.map((event, index) => renderEventCard(event))}
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          className="bg-gray-100 rounded-2xl p-12 text-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        >
+                          <h3 className="text-2xl font-medium mb-4 text-gray-800">No Upcoming Events</h3>
+                          <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                            There are no upcoming events in the {selectedCategory.name} category. 
+                            Check back later for new events!
                           </p>
-                          
-                          <div className="flex items-center">
-                            {event.hostProfileImage ? (
-                              <img 
-                                src={event.hostProfileImage} 
-                                alt={event.hostName}
-                                className="w-10 h-10 rounded-full mr-3"
-                              />
-                            ) : (
-                              <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3" />
-                            )}
-                            <div>
-                              <p className="font-medium text-gray-900">{event.hostName}</p>
-                              <p className="text-sm text-gray-500">Host</p>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))
-                  ) : (
-                    <motion.div 
-                      className="col-span-full bg-gray-100 rounded-2xl p-12 text-center"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <h3 className="text-2xl font-medium mb-4 text-gray-800">No Events Found</h3>
-                      <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
-                        We couldn't find any events in the {selectedCategory.name} category. 
-                        Check back soon or explore other categories!
-                      </p>
-                      <button
-                        onClick={backToCategories}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Browse All Categories
-                      </button>
-                    </motion.div>
-                  )}
-                </motion.div>
-              )}
+                        </motion.div>
+                      )}
+                    </TabsContent>
+                    
+                    <TabsContent value="live" className="mt-6">
+                      {filteredEvents.live.length > 0 ? (
+                        <motion.div 
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          {filteredEvents.live.map((event, index) => renderEventCard(event))}
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          className="bg-gray-100 rounded-2xl p-12 text-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        >
+                          <h3 className="text-2xl font-medium mb-4 text-gray-800">No Live Events</h3>
+                          <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                            There are no live events happening right now in the {selectedCategory.name} category.
+                            Check the upcoming tab for scheduled events!
+                          </p>
+                        </motion.div>
+                      )}
+                    </TabsContent>
+                    
+                    <TabsContent value="completed" className="mt-6">
+                      {filteredEvents.completed.length > 0 ? (
+                        <motion.div 
+                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.1 }}
+                        >
+                          {filteredEvents.completed.map((event, index) => renderEventCard(event))}
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          className="bg-gray-100 rounded-2xl p-12 text-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                        >
+                          <h3 className="text-2xl font-medium mb-4 text-gray-800">No Completed Events</h3>
+                          <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                            There are no completed events in the {selectedCategory.name} category yet.
+                          </p>
+                        </motion.div>
+                      )}
+                    </TabsContent>
+                  </>
+                )}
+              </Tabs>
             </>
           )}
         </div>

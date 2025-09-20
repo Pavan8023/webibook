@@ -132,9 +132,9 @@ const Tnc = () => {
                 <p>
                   For questions about these Terms:
                   <br />
-                  Email: legal@webibook.com
+                  Email: webibook.ai@gmail.com
                   <br />
-                  Address: 123 Webinar Street, Virtual City, VC 12345
+                  Address: Company Launching Soon
                 </p>
               </div>
             </div>

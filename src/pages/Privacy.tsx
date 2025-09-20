@@ -106,9 +106,9 @@ const Privacy = () => {
                 <p>
                   For privacy-related questions or concerns:
                   <br />
-                  Email: privacy@webibook.com
+                  Email: webibook.ai@gmail.com
                   <br />
-                  Address: 123 Webinar Street, Virtual City, VC 12345
+                  Address: Company Launching Soon
                 </p>
               </div>
             </div>

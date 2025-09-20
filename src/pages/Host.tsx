@@ -176,7 +176,6 @@ const Host = () => {
   const [attendeeDetails, setAttendeeDetails] = useState<any[]>([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
   const navigate = useNavigate();
-  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -406,10 +405,10 @@ const Host = () => {
 
         if (!error && result && result.event === "success") {
           const imageUrl = result.info.secure_url;
-          setUploadedImageUrl(imageUrl);
+          setFormData(prev => ({ ...prev, coverImageURL: imageUrl }));
           toast({
             title: "Image uploaded!",
-            description: "Your image has been successfully uploaded to Cloudinary",
+            description: "Your image has been successfully uploaded and applied to your event",
           });
         } else if (error) {
           console.error("Cloudinary widget error:", error);
@@ -423,37 +422,6 @@ const Host = () => {
     );
 
     widget.open();
-  };
-
-  // Image URL helpers
-  const copyImageUrlToClipboard = () => {
-    if (!uploadedImageUrl) return;
-
-    navigator.clipboard.writeText(uploadedImageUrl)
-      .then(() => {
-        toast({
-          title: "Copied!",
-          description: "Image URL copied to clipboard",
-        });
-      })
-      .catch(err => {
-        console.error('Failed to copy: ', err);
-        toast({
-          title: "Copy failed",
-          description: "Could not copy image URL",
-          variant: "destructive"
-        });
-      });
-  };
-
-  const applyImageUrlToForm = () => {
-    if (!uploadedImageUrl) return;
-
-    setFormData(prev => ({ ...prev, coverImageURL: uploadedImageUrl }));
-    toast({
-      title: "Image applied!",
-      description: "Image URL has been added to your event",
-    });
   };
 
   // Form data with proper type
@@ -543,7 +511,6 @@ const Host = () => {
         maxAttendees: '100',
         coverImageURL: ''
       });
-      setUploadedImageUrl('');
 
     } catch (error) {
       console.error("Error creating event:", error);
@@ -591,7 +558,6 @@ const Host = () => {
       });
 
       setEditingEvent(null);
-      setUploadedImageUrl('');
     } catch (error) {
       console.error("Error updating event:", error);
       toast({
@@ -702,7 +668,6 @@ const Host = () => {
       coverImageURL: event.coverImageURL || ''
     });
     setEventType(event.eventType);
-    setUploadedImageUrl('');
   };
 
   const openViewEvent = (event: Event) => {
@@ -892,11 +857,38 @@ const Host = () => {
     const [deleteEmail, setDeleteEmail] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [providerInfo, setProviderInfo] = useState<{
+      type: string;
+      name: string;
+      logo: string;
+      link: string;
+    } | null>(null);
 
     useEffect(() => {
       const loadSettings = async () => {
         if (user) {
           try {
+            // Check provider type
+            const providerId = user.providerData[0]?.providerId;
+            if (providerId === 'google.com') {
+              setProviderInfo({
+                type: 'google',
+                name: 'Google',
+                logo: "https://www.freepnglogos.com/uploads/google-logo-png/google-logo-icon-png-transparent-background-osteopathy-16.png",
+                link: 'https://myaccount.google.com/security'
+              });
+            } else if (providerId === 'twitter.com') {
+              setProviderInfo({
+                type: 'twitter',
+                name: 'Twitter',
+                logo: "https://static.vecteezy.com/system/resources/previews/027/395/710/original/twitter-brand-new-logo-3-d-with-new-x-shaped-graphic-of-the-world-s-most-popular-social-media-free-png.png",
+                link: 'https://twitter.com/settings/password'
+              });
+            } else {
+              setProviderInfo(null);
+            }
+
+            // Load settings
             const userRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userRef);
 
@@ -1120,7 +1112,29 @@ const Host = () => {
               <h3 className="text-lg font-medium mb-4">Password</h3>
               {changePasswordOpen ? (
                 <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-                  {userData?.provider === 'email' ? (
+                  {providerInfo ? (
+                    <div className="p-4 border rounded-lg bg-gray-50">
+                      <div className="flex items-center mb-3">
+                        <img
+                          src={providerInfo.logo}
+                          alt={providerInfo.name}
+                          className="w-6 h-6 mr-2"
+                        />
+                        <span className="font-medium">Account secured by {providerInfo.name}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Your password is managed by {providerInfo.name}. To change your password,
+                        please visit your {providerInfo.name} account settings.
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => window.open(providerInfo.link, '_blank')}
+                      >
+                        Change Password on {providerInfo.name}
+                      </Button>
+                    </div>
+                  ) : (
                     <>
                       <div className="space-y-2">
                         <Label htmlFor="currentPassword">Current Password</Label>
@@ -1170,32 +1184,6 @@ const Host = () => {
                         </Button>
                       </div>
                     </>
-                  ) : (
-                    <div className="p-4 bg-blue-50 rounded-lg flex items-center gap-4">
-                      <div className="bg-blue-100 p-3 rounded-full">
-                        {userData?.provider === 'google.com' ? (
-                          <svg className="h-8 w-8 text-blue-600" viewBox="0 0 24 24">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                            <path d="M1 1h22v22H1z" fill="none" />
-                          </svg>
-                        ) : (
-                          <svg className="h-8 w-8 text-blue-600" viewBox="0 0 24 24">
-                            <path d="M23.954 4.569a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.691 8.094 4.066 6.13 1.64 3.161a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.061a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.937 4.937 0 004.604 3.417 9.868 9.868 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.054 0 13.999-7.496 13.999-13.986 0-.209 0-.42-.015-.63a9.936 9.936 0 002.46-2.548l-.047-.02z" fill="#1DA1F2" />
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          Password Secured by {userData?.provider === 'google.com' ? 'Google' : 'Twitter'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Your password is managed by your {userData?.provider === 'google.com' ? 'Google' : 'Twitter'} account
-                        </p>
-                      </div>
-                    </div>
                   )}
                 </div>
               ) : (
@@ -1310,7 +1298,6 @@ const Host = () => {
                     maxAttendees: '100',
                     coverImageURL: ''
                   });
-                  setUploadedImageUrl('');
                 }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Create New Event
@@ -1466,62 +1453,32 @@ const Host = () => {
                         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                           <h3 className="font-medium mb-3 text-center">Image Upload Tool</h3>
 
-                          <div className="grid grid-cols-3 gap-4">
-                            <div
-                              className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer bg-white min-h-[120px]"
-                              onClick={openCloudinaryWidget}
-                            >
-                              {isUploading ? (
-                                <div className="text-center py-4">
-                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                                  <p className="text-sm text-muted-foreground">Uploading to Cloudinary...</p>
-                                </div>
-                              ) : uploadedImageUrl ? (
-                                <img
-                                  src={uploadedImageUrl}
-                                  alt="Uploaded preview"
-                                  className="h-24 w-full object-contain mb-2"
-                                />
-                              ) : (
-                                <div className="text-center">
-                                  <p className="text-sm text-muted-foreground">
-                                    Click to upload
-                                  </p>
-                                  <Button variant="outline" className="mt-2">
-                                    Upload to Cloudinary
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-center">
-                              <Button
-                                onClick={copyImageUrlToClipboard}
-                                disabled={!uploadedImageUrl || isUploading}
-                                className="w-full h-12"
-                              >
-                                <Copy className="mr-2 h-4 w-4" /> Copy URL
-                              </Button>
-                            </div>
-
-                            <div className="flex items-center justify-center">
-                              <Button
-                                onClick={applyImageUrlToForm}
-                                disabled={!uploadedImageUrl || isUploading}
-                                className="w-full h-12"
-                              >
-                                <Save className="mr-2 h-4 w-4" /> Apply to Form
-                              </Button>
-                            </div>
+                          <div
+                            className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer bg-white min-h-[120px]"
+                            onClick={openCloudinaryWidget}
+                          >
+                            {isUploading ? (
+                              <div className="text-center py-4">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                                <p className="text-sm text-muted-foreground">Uploading to Cloudinary...</p>
+                              </div>
+                            ) : formData.coverImageURL ? (
+                              <img
+                                src={formData.coverImageURL}
+                                alt="Uploaded preview"
+                                className="h-24 w-full object-contain mb-2"
+                              />
+                            ) : (
+                              <div className="text-center">
+                                <p className="text-sm text-muted-foreground">
+                                  Click to upload
+                                </p>
+                                <Button variant="outline" className="mt-2">
+                                  Upload to Cloudinary
+                                </Button>
+                              </div>
+                            )}
                           </div>
-
-                          {uploadedImageUrl && (
-                            <div className="mt-3 text-center">
-                              <p className="text-xs text-muted-foreground break-all">
-                                {uploadedImageUrl.substring(0, 40)}...
-                              </p>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>

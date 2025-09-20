@@ -4,13 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Input } from '@/components/ui/input';
-import { Search, X, Video, Calendar, Clock, User } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Search, X, User, Calendar, Clock, Users } from 'lucide-react';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 
 interface CategoryData {
   id: string;
@@ -104,15 +103,11 @@ const Categories = () => {
     upcoming: EventData[];
     live: EventData[];
     completed: EventData[];
-  }>({
-    upcoming: [],
-    live: [],
-    completed: []
-  });
+  }>({ upcoming: [], live: [], completed: [] });
+  const [activeTab, setActiveTab] = useState('upcoming');
   const [loading, setLoading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [activeTab, setActiveTab] = useState('upcoming');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -129,11 +124,13 @@ const Categories = () => {
   }, [selectedCategory]);
 
   useEffect(() => {
-    // Categorize events based on current time
+    // Categorize events based on their status
     const now = new Date();
-    const upcoming: EventData[] = [];
-    const live: EventData[] = [];
-    const completed: EventData[] = [];
+    const categorizedEvents = {
+      upcoming: [] as EventData[],
+      live: [] as EventData[],
+      completed: [] as EventData[]
+    };
 
     events.forEach(event => {
       const eventDate = new Date(`${event.date}T${event.time}`);
@@ -141,22 +138,15 @@ const Categories = () => {
       const endTime = new Date(eventDate.getTime() + durationInMinutes * 60000);
 
       if (now < eventDate) {
-        // Event is upcoming
-        upcoming.push({ ...event, status: 'upcoming' });
+        categorizedEvents.upcoming.push({ ...event, status: 'upcoming' });
       } else if (now >= eventDate && now <= endTime) {
-        // Event is live
-        live.push({ ...event, status: 'live' });
+        categorizedEvents.live.push({ ...event, status: 'live' });
       } else {
-        // Event is completed
-        completed.push({ ...event, status: 'completed' });
+        categorizedEvents.completed.push({ ...event, status: 'completed' });
       }
     });
 
-    setFilteredEvents({
-      upcoming,
-      live,
-      completed
-    });
+    setFilteredEvents(categorizedEvents);
   }, [events]);
 
   const fetchEvents = async (categoryName: string) => {
@@ -167,23 +157,51 @@ const Categories = () => {
       const querySnapshot = await getDocs(q);
       
       const fetchedEvents: EventData[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        fetchedEvents.push({
-          id: doc.id,
-          title: data.title,
-          description: data.description,
-          coverImageURL: data.coverImageURL,
-          date: data.date,
-          time: data.time,
-          duration: data.duration,
-          hostId: data.hostId,
-          hostName: data.hostName,
-          hostProfileImage: data.hostProfileImage || data.hostPhoto,
-          category: data.category,
-          dailyRoomUrl: data.dailyRoomUrl
-        });
-      });
+      
+      // In the fetchEvents function, change the parameter name in the map function
+const eventPromises = querySnapshot.docs.map(async (eventDoc) => { // Changed from 'doc' to 'eventDoc'
+  const data = eventDoc.data(); // Changed from doc.data() to eventDoc.data()
+  
+  // Fetch host profile image from users collection
+  let hostProfileImage = '';
+  try {
+    const userDocRef = doc(db, 'users', data.hostId); // Now 'doc' refers to the Firebase function
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      // Check for all possible profile image fields
+      hostProfileImage = userData.photoURL || userData.photolRL || userData.profileURL || '';
+      
+      // Handle HEIC images by converting to a web-compatible format
+      if (hostProfileImage && hostProfileImage.toLowerCase().endsWith('.heic')) {
+        // You might want to use a service to convert HEIC to JPEG/PNG
+        // For now, we'll use a placeholder if it's HEIC
+        hostProfileImage = '';
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching host profile:", error);
+  }
+  
+  return {
+    id: eventDoc.id, // Changed from doc.id to eventDoc.id
+    title: data.title,
+    description: data.description,
+    coverImageURL: data.coverImageURL,
+    date: data.date,
+    time: data.time,
+    duration: data.duration,
+    hostId: data.hostId,
+    hostName: data.hostName,
+    hostProfileImage,
+    category: data.category,
+    dailyRoomUrl: data.dailyRoomUrl
+  };
+});
+      
+      // Wait for all promises to resolve
+      const eventsData = await Promise.all(eventPromises);
+      fetchedEvents.push(...eventsData);
       
       setEvents(fetchedEvents);
     } catch (error) {
@@ -204,16 +222,24 @@ const Categories = () => {
   const backToCategories = () => {
     setSelectedCategory(null);
     setEvents([]);
-    setFilteredEvents({
-      upcoming: [],
-      live: [],
-      completed: []
-    });
+    setFilteredEvents({ upcoming: [], live: [], completed: [] });
   };
 
-  const handleActionClick = () => {
+  const handleEventAction = (actionType: 'book' | 'join' | 'replay') => {
     if (!user) {
       setShowLoginModal(true);
+    } else {
+      // Handle the action for logged-in users
+      if (actionType === 'book') {
+        // Book the event
+        console.log('Booking event');
+      } else if (actionType === 'join') {
+        // Join the event
+        console.log('Joining event');
+      } else if (actionType === 'replay') {
+        // Watch replay
+        console.log('Watching replay');
+      }
     }
   };
 
@@ -227,93 +253,26 @@ const Categories = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  const renderEventCard = (event: EventData) => {
-    return (
-      <motion.div
-        key={event.id}
-        className="bg-white rounded-2xl overflow-hidden shadow-lg transform transition-transform"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -5 }}
-      >
-        <div className="relative h-48 overflow-hidden">
-          {event.coverImageURL ? (
-            <img 
-              src={event.coverImageURL} 
-              alt={event.title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-full flex items-center justify-center text-gray-500">
-              Event Image
-            </div>
-          )}
-          <div className="absolute top-3 left-3">
-            <Badge variant={
-              event.status === 'upcoming' ? 'secondary' : 
-              event.status === 'live' ? 'default' : 'outline'
-            }>
-              {event.status === 'live' ? 'LIVE NOW' : event.status}
-            </Badge>
-          </div>
-        </div>
-        
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
-            <div className="flex flex-col items-end text-right">
-              <div className="flex items-center text-sm text-gray-500">
-                <Calendar className="h-4 w-4 mr-1" />
-                <span>{formatDate(event.date)}</span>
-              </div>
-              <div className="flex items-center text-sm text-gray-500">
-                <Clock className="h-4 w-4 mr-1" />
-                <span>{event.time}</span>
-              </div>
-            </div>
-          </div>
-          
-          <p className="text-gray-600 mb-6 line-clamp-2">
-            {event.description}
-          </p>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              {event.hostProfileImage ? (
-                <img 
-                  src={event.hostProfileImage} 
-                  alt={event.hostName}
-                  className="w-10 h-10 rounded-full mr-3 object-cover"
-                />
-              ) : (
-                <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center">
-                  <User className="h-5 w-5 text-gray-500" />
-                </div>
-              )}
-              <div>
-                <p className="font-medium text-gray-900">{event.hostName}</p>
-                <p className="text-sm text-gray-500">Host</p>
-              </div>
-            </div>
-            
-            <Button 
-              onClick={handleActionClick}
-              variant={event.status === 'live' ? 'default' : 'outline'}
-              className={event.status === 'live' ? 'bg-red-600 hover:bg-red-700' : ''}
-            >
-              {event.status === 'upcoming' && 'Book Now'}
-              {event.status === 'live' && (
-                <>
-                  <Video className="h-4 w-4 mr-2" />
-                  Join Now
-                </>
-              )}
-              {event.status === 'completed' && 'Watch Replay'}
-            </Button>
-          </div>
-        </div>
-      </motion.div>
-    );
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours, 10);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const formattedHour = hour % 12 || 12;
+    return `${formattedHour}:${minutes} ${period}`;
+  };
+
+  // Function to handle image loading errors
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const target = e.target as HTMLImageElement;
+    target.onerror = null;
+    target.src = '';
+    target.style.display = 'none';
+    
+    // Show the fallback div
+    const fallback = target.nextSibling as HTMLElement;
+    if (fallback && fallback.classList.contains('image-fallback')) {
+      fallback.style.display = 'flex';
+    }
   };
 
   return (
@@ -390,7 +349,7 @@ const Categories = () => {
               </motion.button>
               
               <motion.div 
-                className="mb-8"
+                className="mb-12"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
@@ -406,95 +365,323 @@ const Categories = () => {
                   </div>
                 </div>
               </motion.div>
-              
+
+              {/* Tabs for event filtering */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
                 <TabsList className="grid grid-cols-3 max-w-md">
-                  <TabsTrigger value="upcoming">Upcoming ({filteredEvents.upcoming.length})</TabsTrigger>
-                  <TabsTrigger value="live">Live ({filteredEvents.live.length})</TabsTrigger>
-                  <TabsTrigger value="completed">Completed ({filteredEvents.completed.length})</TabsTrigger>
+                  <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                  <TabsTrigger value="live">Live</TabsTrigger>
+                  <TabsTrigger value="completed">Completed</TabsTrigger>
                 </TabsList>
-                
-                {loading ? (
-                  <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
-                  </div>
-                ) : (
-                  <>
-                    <TabsContent value="upcoming" className="mt-6">
-                      {filteredEvents.upcoming.length > 0 ? (
-                        <motion.div 
-                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
+
+                <TabsContent value="upcoming" className="mt-6">
+                  {loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : filteredEvents.upcoming.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filteredEvents.upcoming.map((event, index) => (
+                        <motion.div
+                          key={event.id}
+                          className="bg-white rounded-2xl overflow-hidden shadow-lg"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          whileHover={{ y: -5 }}
                         >
-                          {filteredEvents.upcoming.map((event, index) => renderEventCard(event))}
+                          <div className="relative h-48 overflow-hidden">
+                            {event.coverImageURL ? (
+                              <img 
+                                src={event.coverImageURL} 
+                                alt={event.title}
+                                className="w-full h-full object-cover"
+                                onError={handleImageError}
+                              />
+                            ) : (
+                              <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-full flex items-center justify-center text-gray-500">
+                                Event Image
+                              </div>
+                            )}
+                            <div className="absolute bottom-3 left-3 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                              {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                            </div>
+                          </div>
+                          
+                          <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                              <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
+                            </div>
+                            
+                            <p className="text-gray-600 mb-6 line-clamp-2">
+                              {event.description}
+                            </p>
+                            
+                            <div className="flex items-center mb-4">
+                              <div className="flex items-center text-sm text-gray-500 mr-4">
+                                <Calendar className="h-4 w-4 mr-1" />
+                                {formatDate(event.date)}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-500">
+                                <Clock className="h-4 w-4 mr-1" />
+                                {formatTime(event.time)}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <div className="relative">
+                                  {event.hostProfileImage ? (
+                                    <>
+                                      <img 
+                                        src={event.hostProfileImage} 
+                                        alt={event.hostName}
+                                        className="w-10 h-10 rounded-full mr-3 object-cover"
+                                        onError={handleImageError}
+                                      />
+                                      <div className="image-fallback bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center absolute top-0 left-0 hidden">
+                                        <User className="h-5 w-5 text-gray-500" />
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center">
+                                      <User className="h-5 w-5 text-gray-500" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{event.hostName}</p>
+                                  <p className="text-sm text-gray-500">Host</p>
+                                </div>
+                              </div>
+                              <Button 
+                                onClick={() => handleEventAction('book')}
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                Book Now
+                              </Button>
+                            </div>
+                          </div>
                         </motion.div>
-                      ) : (
-                        <motion.div 
-                          className="bg-gray-100 rounded-2xl p-12 text-center"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-100 rounded-2xl p-12 text-center">
+                      <h3 className="text-2xl font-medium mb-4 text-gray-800">No Upcoming Events</h3>
+                      <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                        There are no upcoming events in the {selectedCategory.name} category. 
+                        Check back later for new events!
+                      </p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="live" className="mt-6">
+                  {loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : filteredEvents.live.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filteredEvents.live.map((event, index) => (
+                        <motion.div
+                          key={event.id}
+                          className="bg-white rounded-2xl overflow-hidden shadow-lg"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          whileHover={{ y: -5 }}
                         >
-                          <h3 className="text-2xl font-medium mb-4 text-gray-800">No Upcoming Events</h3>
-                          <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
-                            There are no upcoming events in the {selectedCategory.name} category. 
-                            Check back later for new events!
-                          </p>
+                          <div className="relative h-48 overflow-hidden">
+                            {event.coverImageURL ? (
+                              <img 
+                                src={event.coverImageURL} 
+                                alt={event.title}
+                                className="w-full h-full object-cover"
+                                onError={handleImageError}
+                              />
+                            ) : (
+                              <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-full flex items-center justify-center text-gray-500">
+                                Event Image
+                              </div>
+                            )}
+                            <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                              LIVE NOW
+                            </div>
+                            <div className="absolute bottom-3 left-3 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                              {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                            </div>
+                          </div>
+                          
+                          <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                              <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
+                            </div>
+                            
+                            <p className="text-gray-600 mb-6 line-clamp-2">
+                              {event.description}
+                            </p>
+                            
+                            <div className="flex items-center mb-4">
+                              <div className="flex items-center text-sm text-gray-500 mr-4">
+                                <Clock className="h-4 w-4 mr-1" />
+                                {formatTime(event.time)}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-500">
+                                <Users className="h-4 w-4 mr-1" />
+                                {event.duration} mins
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <div className="relative">
+                                  {event.hostProfileImage ? (
+                                    <>
+                                      <img 
+                                        src={event.hostProfileImage} 
+                                        alt={event.hostName}
+                                        className="w-10 h-10 rounded-full mr-3 object-cover"
+                                        onError={handleImageError}
+                                      />
+                                      <div className="image-fallback bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center absolute top-0 left-0 hidden">
+                                        <User className="h-5 w-5 text-gray-500" />
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center">
+                                      <User className="h-5 w-5 text-gray-500" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{event.hostName}</p>
+                                  <p className="text-sm text-gray-500">Host</p>
+                                </div>
+                              </div>
+                              <Button 
+                                onClick={() => handleEventAction('join')}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                Join Now
+                              </Button>
+                            </div>
+                          </div>
                         </motion.div>
-                      )}
-                    </TabsContent>
-                    
-                    <TabsContent value="live" className="mt-6">
-                      {filteredEvents.live.length > 0 ? (
-                        <motion.div 
-                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-100 rounded-2xl p-12 text-center">
+                      <h3 className="text-2xl font-medium mb-4 text-gray-800">No Live Events</h3>
+                      <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                        There are no live events in the {selectedCategory.name} category right now. 
+                        Check the upcoming tab for scheduled events!
+                      </p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="completed" className="mt-6">
+                  {loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : filteredEvents.completed.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filteredEvents.completed.map((event, index) => (
+                        <motion.div
+                          key={event.id}
+                          className="bg-white rounded-2xl overflow-hidden shadow-lg"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          whileHover={{ y: -5 }}
                         >
-                          {filteredEvents.live.map((event, index) => renderEventCard(event))}
+                          <div className="relative h-48 overflow-hidden">
+                            {event.coverImageURL ? (
+                              <img 
+                                src={event.coverImageURL} 
+                                alt={event.title}
+                                className="w-full h-full object-cover"
+                                onError={handleImageError}
+                              />
+                            ) : (
+                              <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-full flex items-center justify-center text-gray-500">
+                                Event Image
+                              </div>
+                            )}
+                            <div className="absolute bottom-3 left-3 bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                              {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                            </div>
+                          </div>
+                          
+                          <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                              <h3 className="text-xl font-bold text-gray-900">{event.title}</h3>
+                            </div>
+                            
+                            <p className="text-gray-600 mb-6 line-clamp-2">
+                              {event.description}
+                            </p>
+                            
+                            <div className="flex items-center mb-4">
+                              <div className="flex items-center text-sm text-gray-500 mr-4">
+                                <Calendar className="h-4 w-4 mr-1" />
+                                {formatDate(event.date)}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-500">
+                                <Clock className="h-4 w-4 mr-1" />
+                                {formatTime(event.time)}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <div className="relative">
+                                  {event.hostProfileImage ? (
+                                    <>
+                                      <img 
+                                        src={event.hostProfileImage} 
+                                        alt={event.hostName}
+                                        className="w-10 h-10 rounded-full mr-3 object-cover"
+                                        onError={handleImageError}
+                                      />
+                                      <div className="image-fallback bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center absolute top-0 left-0 hidden">
+                                        <User className="h-5 w-5 text-gray-500" />
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="bg-gray-200 border-2 border-dashed rounded-full w-10 h-10 mr-3 flex items-center justify-center">
+                                      <User className="h-5 w-5 text-gray-500" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{event.hostName}</p>
+                                  <p className="text-sm text-gray-500">Host</p>
+                                </div>
+                              </div>
+                              <Button 
+                                onClick={() => handleEventAction('replay')}
+                                variant="outline"
+                              >
+                                Watch Replay
+                              </Button>
+                            </div>
+                          </div>
                         </motion.div>
-                      ) : (
-                        <motion.div 
-                          className="bg-gray-100 rounded-2xl p-12 text-center"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        >
-                          <h3 className="text-2xl font-medium mb-4 text-gray-800">No Live Events</h3>
-                          <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
-                            There are no live events happening right now in the {selectedCategory.name} category.
-                            Check the upcoming tab for scheduled events!
-                          </p>
-                        </motion.div>
-                      )}
-                    </TabsContent>
-                    
-                    <TabsContent value="completed" className="mt-6">
-                      {filteredEvents.completed.length > 0 ? (
-                        <motion.div 
-                          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.1 }}
-                        >
-                          {filteredEvents.completed.map((event, index) => renderEventCard(event))}
-                        </motion.div>
-                      ) : (
-                        <motion.div 
-                          className="bg-gray-100 rounded-2xl p-12 text-center"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                        >
-                          <h3 className="text-2xl font-medium mb-4 text-gray-800">No Completed Events</h3>
-                          <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
-                            There are no completed events in the {selectedCategory.name} category yet.
-                          </p>
-                        </motion.div>
-                      )}
-                    </TabsContent>
-                  </>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-100 rounded-2xl p-12 text-center">
+                      <h3 className="text-2xl font-medium mb-4 text-gray-800">No Completed Events</h3>
+                      <p className="text-gray-600 text-lg mb-6 max-w-2xl mx-auto">
+                        There are no completed events in the {selectedCategory.name} category yet. 
+                        Check back later after events have concluded!
+                      </p>
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             </>
           )}
@@ -536,10 +723,10 @@ const Categories = () => {
                 transition={{ delay: 0.1 }}
               >
                 <p className="text-gray-600 text-lg mb-4">
-                  Please login to access this webinar content.
+                  Please login to access this content.
                 </p>
                 <p className="text-gray-600">
-                  You need to be logged in to view webinar details, register for events, and access exclusive content.
+                  You need to be logged in to book events, join live webinars, and watch replays.
                 </p>
               </motion.div>
               
